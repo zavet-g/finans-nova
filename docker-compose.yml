@@ -1,0 +1,14 @@
+version: '3.8'
+
+services:
+  bot:
+    build: .
+    container_name: finans-nova-bot
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./credentials:/app/credentials:ro
+      - ./backups:/app/backups
+    environment:
+      - TZ=Europe/Moscow

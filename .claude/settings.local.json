@@ -1,0 +1,27 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(if not exist .vscode mkdir .vscode)",
+      "Bash(curl:*)",
+      "WebSearch",
+      "WebFetch(domain:www.improvingagents.com)",
+      "WebFetch(domain:saurav-samantray.medium.com)",
+      "WebFetch(domain:david-gilbertson.medium.com)",
+      "Bash(python -c:*)",
+      "Bash(pip install:*)",
+      "Bash(cd:*)",
+      "Bash(taskkill:*)",
+      "Bash(tasklist:*)",
+      "Bash(findstr:*)",
+      "Bash(timeout:*)",
+      "Bash(python src/main.py:*)",
+      "Bash(dir:*)"
+    ],
+    "deny": [],
+    "ask": []
+  },
+  "enableAllProjectMcpServers": true,
+  "enabledMcpjsonServers": [
+    "context7"
+  ]
+}
