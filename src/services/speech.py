@@ -40,12 +40,12 @@ async def transcribe(audio_path: Path) -> str | None:
         }
 
         timeout = aiohttp.ClientTimeout(total=60, connect=15, sock_read=30)
-        resolver = ThreadedResolver()
-        connector = aiohttp.TCPConnector(resolver=resolver, force_close=True)
 
         last_error = None
         for attempt in range(1, MAX_RETRIES + 1):
             try:
+                resolver = ThreadedResolver()
+                connector = aiohttp.TCPConnector(resolver=resolver, force_close=True)
                 async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
                     logger.info(f"SpeechKit request attempt {attempt}/{MAX_RETRIES}")
                     async with session.post(
