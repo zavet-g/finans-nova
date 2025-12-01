@@ -1,7 +1,9 @@
-FROM python:3.11-bookworm
+FROM jrottenberg/ffmpeg:4.4-ubuntu AS ffmpeg
 
-RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg \
-    && rm -rf /var/lib/apt/lists/*
+FROM python:3.11-slim
+
+COPY --from=ffmpeg /usr/local/bin/ffmpeg /usr/local/bin/ffmpeg
+COPY --from=ffmpeg /usr/local/bin/ffprobe /usr/local/bin/ffprobe
 
 WORKDIR /app
 
