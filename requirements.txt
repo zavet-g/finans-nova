@@ -1,4 +1,6 @@
 python-telegram-bot>=20.0
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch
 openai-whisper>=20230314
 gspread>=5.12.0
 google-auth>=2.23.0
