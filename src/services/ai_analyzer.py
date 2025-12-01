@@ -1,6 +1,8 @@
 import logging
 import json
+import asyncio
 import aiohttp
+from aiohttp.resolver import ThreadedResolver
 from typing import Optional
 
 from src.config import YANDEX_GPT_API_KEY, YANDEX_GPT_FOLDER_ID
@@ -9,6 +11,7 @@ from src.models.category import TransactionType, EXPENSE_CATEGORIES, INCOME_CATE
 logger = logging.getLogger(__name__)
 
 YANDEX_GPT_URL = "https://llm.api.cloud.yandex.net/foundationModels/v1/completion"
+MAX_RETRIES = 3
 
 
 async def parse_transactions(text: str) -> list[dict] | None:
@@ -147,7 +150,7 @@ async def generate_monthly_report(
 
 
 async def call_yandex_gpt(prompt: str, temperature: float = 0.3) -> str:
-    """Вызывает YandexGPT API."""
+    """Вызывает YandexGPT API с retry логикой."""
     headers = {
         "Authorization": f"Api-Key {YANDEX_GPT_API_KEY}",
         "Content-Type": "application/json",
@@ -165,15 +168,29 @@ async def call_yandex_gpt(prompt: str, temperature: float = 0.3) -> str:
         ],
     }
 
-    timeout = aiohttp.ClientTimeout(total=60, connect=10)
-    async with aiohttp.ClientSession(timeout=timeout) as session:
-        async with session.post(YANDEX_GPT_URL, headers=headers, json=body) as response:
-            if response.status != 200:
-                error_text = await response.text()
-                raise RuntimeError(f"YandexGPT API error: {response.status} - {error_text}")
+    timeout = aiohttp.ClientTimeout(total=60, connect=15, sock_read=30)
 
-            data = await response.json()
-            return data["result"]["alternatives"][0]["message"]["text"]
+    last_error = None
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            resolver = ThreadedResolver()
+            connector = aiohttp.TCPConnector(resolver=resolver, force_close=True)
+            async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
+                logger.info(f"YandexGPT request attempt {attempt}/{MAX_RETRIES}")
+                async with session.post(YANDEX_GPT_URL, headers=headers, json=body) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        raise RuntimeError(f"YandexGPT API error: {response.status} - {error_text}")
+
+                    data = await response.json()
+                    return data["result"]["alternatives"][0]["message"]["text"]
+        except aiohttp.ClientError as e:
+            last_error = e
+            logger.warning(f"YandexGPT attempt {attempt} failed: {e}")
+            if attempt < MAX_RETRIES:
+                await asyncio.sleep(1)
+
+    raise RuntimeError(f"YandexGPT failed after {MAX_RETRIES} attempts: {last_error}")
 
 
 def fallback_categorize(description: str) -> dict:

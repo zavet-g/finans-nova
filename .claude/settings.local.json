@@ -19,7 +19,9 @@
       "Bash(brew install:*)",
       "Bash(source:*)",
       "Bash(python3:*)",
-      "Bash(pip3 install:*)"
+      "Bash(pip3 install:*)",
+      "Bash(docker exec:*)",
+      "Bash(docker ps:*)"
     ],
     "deny": [],
     "ask": []
