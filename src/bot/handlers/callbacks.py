@@ -274,7 +274,11 @@ async def backup_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await query.edit_message_text(welcome_text, reply_markup=main_menu_keyboard())
 
     elif action == "csv":
-        await query.edit_message_text("📥 Экспортирую данные...", reply_markup=None)
+        try:
+            await query.edit_message_text("📥 Экспортирую данные...", reply_markup=None)
+        except Exception:
+            pass
+
         try:
             from src.services.sheets import export_to_csv
             csv_data = export_to_csv()
@@ -286,7 +290,10 @@ async def backup_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             await query.message.reply_document(
                 document=file,
                 filename=file.name,
-                caption="📥 Экспорт транзакций в CSV",
+                caption="📥 Экспорт транзакций в CSV"
+            )
+            await query.message.reply_text(
+                "Выбери действие:",
                 reply_markup=backup_keyboard()
             )
         except Exception as e:
@@ -297,7 +304,11 @@ async def backup_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             )
 
     elif action == "now":
-        await query.edit_message_text("💾 Создаю бэкап...", reply_markup=None)
+        try:
+            await query.edit_message_text("💾 Создаю бэкап...", reply_markup=None)
+        except Exception:
+            pass
+
         try:
             from src.services.sheets import create_backup
             backup_name = create_backup()
