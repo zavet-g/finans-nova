@@ -1,4 +1,5 @@
 import logging
+import asyncio
 import aiohttp
 from aiohttp.resolver import ThreadedResolver
 from pathlib import Path
@@ -63,11 +64,10 @@ async def transcribe(audio_path: Path) -> str | None:
                         text = result.get("result", "").strip()
                         logger.info(f"SpeechKit transcribed: {text[:100]}...")
                         return text if text else None
-            except aiohttp.ClientError as e:
+            except (aiohttp.ClientError, asyncio.TimeoutError) as e:
                 last_error = e
                 logger.warning(f"SpeechKit attempt {attempt} failed: {e}")
                 if attempt < MAX_RETRIES:
-                    import asyncio
                     await asyncio.sleep(1)
 
         logger.error(f"SpeechKit failed after {MAX_RETRIES} attempts: {last_error}")

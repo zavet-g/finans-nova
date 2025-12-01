@@ -184,7 +184,7 @@ async def call_yandex_gpt(prompt: str, temperature: float = 0.3) -> str:
 
                     data = await response.json()
                     return data["result"]["alternatives"][0]["message"]["text"]
-        except aiohttp.ClientError as e:
+        except (aiohttp.ClientError, asyncio.TimeoutError) as e:
             last_error = e
             logger.warning(f"YandexGPT attempt {attempt} failed: {e}")
             if attempt < MAX_RETRIES:
