@@ -165,7 +165,8 @@ async def call_yandex_gpt(prompt: str, temperature: float = 0.3) -> str:
         ],
     }
 
-    async with aiohttp.ClientSession() as session:
+    timeout = aiohttp.ClientTimeout(total=60, connect=10)
+    async with aiohttp.ClientSession(timeout=timeout) as session:
         async with session.post(YANDEX_GPT_URL, headers=headers, json=body) as response:
             if response.status != 200:
                 error_text = await response.text()

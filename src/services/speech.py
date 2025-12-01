@@ -35,7 +35,8 @@ async def transcribe(audio_path: Path) -> str | None:
             "sampleRateHertz": 16000,
         }
 
-        async with aiohttp.ClientSession() as session:
+        timeout = aiohttp.ClientTimeout(total=30, connect=10)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
             async with session.post(
                 SPEECHKIT_URL,
                 headers=headers,
