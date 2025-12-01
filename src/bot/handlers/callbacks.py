@@ -67,7 +67,10 @@ async def show_transactions(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         )
         has_more = False
 
-    await query.edit_message_text(text, reply_markup=transactions_list_keyboard(has_more=has_more))
+    try:
+        await query.edit_message_text(text, reply_markup=transactions_list_keyboard(has_more=has_more))
+    except Exception:
+        await query.message.reply_text(text, reply_markup=transactions_list_keyboard(has_more=has_more))
 
 
 async def show_analytics_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -75,18 +78,27 @@ async def show_analytics_menu(update: Update, context: ContextTypes.DEFAULT_TYPE
     query = update.callback_query
 
     text = (
-        "📊 АНАЛИТИКА\n\n"
+        "АНАЛИТИКА\n\n"
         "Выбери период для AI-анализа расходов:"
     )
 
-    await query.edit_message_text(text, reply_markup=analytics_period_keyboard())
+    try:
+        await query.edit_message_text(text, reply_markup=analytics_period_keyboard())
+    except Exception:
+        await query.message.reply_text(text, reply_markup=analytics_period_keyboard())
 
 
 async def show_charts(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Показывает графики расходов."""
     query = update.callback_query
 
-    await query.edit_message_text("📈 Генерирую графики...", reply_markup=None)
+    if query.message.text:
+        try:
+            await query.edit_message_text("📈 Генерирую графики...", reply_markup=None)
+        except Exception:
+            await query.message.reply_text("📈 Генерирую графики...")
+    else:
+        await query.message.reply_text("📈 Генерирую графики...")
 
     try:
         from src.services.sheets import get_expenses_by_category, get_month_summary, get_current_balance
@@ -129,12 +141,15 @@ async def show_backup_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -
     query = update.callback_query
 
     text = (
-        "💾 БЭКАП И ЭКСПОРТ\n\n"
+        "БЭКАП И ЭКСПОРТ\n\n"
         "Автоматический бэкап: каждое воскресенье в 03:00\n"
         "Хранится: последние 4 бэкапа (1 месяц)"
     )
 
-    await query.edit_message_text(text, reply_markup=backup_keyboard())
+    try:
+        await query.edit_message_text(text, reply_markup=backup_keyboard())
+    except Exception:
+        await query.message.reply_text(text, reply_markup=backup_keyboard())
 
 
 async def open_sheets(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -144,11 +159,14 @@ async def open_sheets(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     from src.config import GOOGLE_SHEETS_SPREADSHEET_ID
     if GOOGLE_SHEETS_SPREADSHEET_ID:
         url = f"https://docs.google.com/spreadsheets/d/{GOOGLE_SHEETS_SPREADSHEET_ID}"
-        text = f"📎 Ссылка на таблицу:\n{url}"
+        text = f"Ссылка на таблицу:\n{url}"
     else:
         text = "Google Sheets не настроен. Добавь GOOGLE_SHEETS_SPREADSHEET_ID в .env"
 
-    await query.edit_message_text(text, reply_markup=main_menu_keyboard())
+    try:
+        await query.edit_message_text(text, reply_markup=main_menu_keyboard())
+    except Exception:
+        await query.message.reply_text(text, reply_markup=main_menu_keyboard())
 
 
 async def period_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:

@@ -108,8 +108,36 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
 
 
 async def process_transaction_text(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str) -> None:
-    """Обрабатывает текст и создаёт транзакции."""
+    """Обрабатывает текст и создаёт транзакции через AI."""
     from src.models.transaction import Transaction
+    from src.services.ai_analyzer import parse_transactions
+
+    ai_results = await parse_transactions(text)
+
+    if ai_results:
+        transactions = [
+            Transaction(
+                type=tx["type"],
+                category=tx["category"],
+                description=tx["description"],
+                amount=tx["amount"],
+            )
+            for tx in ai_results
+        ]
+
+        if len(transactions) == 1:
+            context.user_data["pending_transaction"] = transactions[0]
+            context.user_data.pop("pending_transactions", None)
+            await update.message.reply_text(
+                f"Распознана транзакция:\n\n{transactions[0].format_for_user()}",
+                reply_markup=confirm_transaction_keyboard()
+            )
+        else:
+            context.user_data["pending_transactions"] = transactions
+            context.user_data["current_tx_index"] = 0
+            context.user_data.pop("pending_transaction", None)
+            await show_next_transaction(update, context)
+        return
 
     parsed = parse_multiple_transactions(text)
 

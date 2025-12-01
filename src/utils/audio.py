@@ -5,17 +5,18 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 
-async def convert_ogg_to_wav(ogg_path: Path) -> Path:
-    """Конвертирует OGG файл в WAV с помощью FFmpeg."""
-    wav_path = ogg_path.with_suffix(".wav")
+async def convert_ogg_to_pcm(ogg_path: Path) -> Path:
+    """Конвертирует OGG файл в raw PCM для SpeechKit."""
+    pcm_path = ogg_path.with_suffix(".pcm")
 
     cmd = [
         "ffmpeg",
         "-i", str(ogg_path),
         "-ar", "16000",
         "-ac", "1",
+        "-f", "s16le",
         "-y",
-        str(wav_path)
+        str(pcm_path)
     ]
 
     process = await asyncio.create_subprocess_exec(
@@ -31,5 +32,5 @@ async def convert_ogg_to_wav(ogg_path: Path) -> Path:
         logger.error(f"FFmpeg conversion failed: {error_msg}")
         raise RuntimeError(f"FFmpeg conversion failed: {error_msg}")
 
-    logger.info(f"Converted {ogg_path.name} to {wav_path.name}")
-    return wav_path
+    logger.info(f"Converted {ogg_path.name} to {pcm_path.name}")
+    return pcm_path

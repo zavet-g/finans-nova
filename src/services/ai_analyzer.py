@@ -11,6 +11,62 @@ logger = logging.getLogger(__name__)
 YANDEX_GPT_URL = "https://llm.api.cloud.yandex.net/foundationModels/v1/completion"
 
 
+async def parse_transactions(text: str) -> list[dict] | None:
+    """Парсит одну или несколько транзакций из текста с помощью YandexGPT."""
+    if not YANDEX_GPT_API_KEY or not YANDEX_GPT_FOLDER_ID:
+        logger.warning("YandexGPT not configured")
+        return None
+
+    categories_list = ", ".join([cat.name for cat in EXPENSE_CATEGORIES])
+
+    prompt = f"""Извлеки из текста ВСЕ финансовые транзакции.
+
+Текст: "{text}"
+
+Категории расходов: {categories_list}
+Категория дохода: Доход
+
+ПРАВИЛА:
+1. Каждая покупка — ОТДЕЛЬНАЯ транзакция со своей суммой и описанием
+2. ОПИСАНИЕ должно содержать контекст именно этой покупки (куда, зачем, для кого), если он есть в тексте
+3. Если контекста нет — просто название товара/услуги
+4. Игнорируй команды бота: "добавь", "запиши", "в новые покупки"
+
+Ответь ТОЛЬКО JSON-массивом:
+[{{"type": "expense/income", "category": "категория", "description": "описание с контекстом", "amount": число}}]
+
+Примеры:
+- "такси до работы 500" -> [{{"type": "expense", "category": "Такси", "description": "До работы", "amount": 500}}]
+- "такси 500" -> [{{"type": "expense", "category": "Такси", "description": "Такси", "amount": 500}}]
+- "цветы жене 3500" -> [{{"type": "expense", "category": "Подарки", "description": "Цветы жене", "amount": 3500}}]
+- "обед в столовой 400 кофе с коллегой 250" -> [{{"type": "expense", "category": "Еда", "description": "Обед в столовой", "amount": 400}}, {{"type": "expense", "category": "Еда", "description": "Кофе с коллегой", "amount": 250}}]
+- "аптека от простуды 800" -> [{{"type": "expense", "category": "Здоровье", "description": "Лекарства от простуды", "amount": 800}}]
+- "зарплата за ноябрь 100000" -> [{{"type": "income", "category": "Доход", "description": "Зарплата за ноябрь", "amount": 100000}}]"""
+
+    try:
+        result = await call_yandex_gpt(prompt)
+        result = result.strip()
+        if result.startswith("```"):
+            result = result.split("\n", 1)[1].rsplit("```", 1)[0]
+        data = json.loads(result)
+
+        if not isinstance(data, list):
+            data = [data]
+
+        transactions = []
+        for item in data:
+            transactions.append({
+                "type": TransactionType(item["type"]),
+                "category": item["category"],
+                "description": item["description"],
+                "amount": float(item["amount"]),
+            })
+        return transactions if transactions else None
+    except Exception as e:
+        logger.error(f"YandexGPT parse failed: {e}")
+        return None
+
+
 async def categorize_transaction(description: str, amount: float) -> dict:
     """Категоризирует транзакцию с помощью YandexGPT."""
     if not YANDEX_GPT_API_KEY or not YANDEX_GPT_FOLDER_ID:

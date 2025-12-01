@@ -36,11 +36,10 @@ def format_transaction_list(transactions: list[dict]) -> str:
 
     lines = []
     for tx in transactions:
-        date = tx.get("Date", "")
-        category = tx.get("Category", "")
-        description = tx.get("Description", "")
-        amount = tx.get("Amount", "0")
-        tx_type = tx.get("Type", "expense")
+        date = tx.get("Дата", tx.get("Date", ""))
+        category = tx.get("Категория", tx.get("Category", ""))
+        amount = tx.get("Сумма", tx.get("Amount", "0"))
+        tx_type = tx.get("Тип", tx.get("Type", "expense"))
 
         try:
             date_obj = datetime.strptime(date, "%Y-%m-%d")
@@ -48,14 +47,16 @@ def format_transaction_list(transactions: list[dict]) -> str:
         except ValueError:
             date_str = date
 
-        sign = "+" if tx_type == "income" else "-"
+        is_income = tx_type in ("income", "доход")
+        sign = "+" if is_income else "−"
 
         try:
-            amount_str = f"{float(amount):,.0f}".replace(",", " ")
+            amount_clean = str(amount).replace("\xa0", "").replace(" ", "")
+            amount_str = f"{float(amount_clean):,.0f}".replace(",", " ")
         except ValueError:
             amount_str = amount
 
-        lines.append(f"{date_str} | {category} | {description[:20]} | {sign}{amount_str} руб.")
+        lines.append(f"{date_str}  {category}  {sign}{amount_str} ₽")
 
     return "\n".join(lines)
 

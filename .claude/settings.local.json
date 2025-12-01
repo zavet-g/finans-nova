@@ -15,7 +15,11 @@
       "Bash(findstr:*)",
       "Bash(timeout:*)",
       "Bash(python src/main.py:*)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(brew install:*)",
+      "Bash(source:*)",
+      "Bash(python3:*)",
+      "Bash(pip3 install:*)"
     ],
     "deny": [],
     "ask": []

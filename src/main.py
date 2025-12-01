@@ -50,6 +50,13 @@ def main():
         logger.error("TELEGRAM_BOT_TOKEN not set in .env")
         sys.exit(1)
 
+    try:
+        from src.services.sheets import init_spreadsheet
+        init_spreadsheet()
+        logger.info("Spreadsheet structure initialized")
+    except Exception as e:
+        logger.warning(f"Could not initialize spreadsheet: {e}")
+
     _application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
 
     _application.add_handler(CommandHandler("start", start_command))
