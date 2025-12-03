@@ -101,13 +101,12 @@ async def show_charts(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         await query.message.reply_text("📈 Генерирую графики...")
 
     try:
-        from src.services.sheets import get_expenses_by_category, get_month_summary, get_current_balance
+        from src.services.sheets import get_expenses_by_category, get_month_summary
         from src.services.charts import generate_monthly_summary_chart
         from src.utils.formatters import month_name
 
         now = datetime.now()
         summary = get_month_summary(now.year, now.month)
-        balance = get_current_balance()
 
         if summary.get("expenses", 0) == 0 and summary.get("income", 0) == 0:
             await query.message.reply_text(
@@ -119,11 +118,12 @@ async def show_charts(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             return
 
         chart = generate_monthly_summary_chart(summary, month_name(now.month), now.year)
+        balance = summary.get("balance", 0)
 
         await query.message.reply_photo(
             photo=chart,
             caption=f"📈 Финансовая сводка за {month_name(now.month)} {now.year}\n\n"
-                    f"Текущий баланс: {balance:,.0f} руб.".replace(",", " "),
+                    f"Баланс месяца: {balance:,.0f} руб.".replace(",", " "),
             reply_markup=main_menu_keyboard()
         )
 

@@ -116,7 +116,7 @@ def _init_summary_sheet(spreadsheet: gspread.Spreadsheet):
             ["Начальный баланс", 0],
             ["", ""],
             ["БАЛАНС", ""],
-            ["Текущий баланс", '=IF(COUNTA(Транзакции!G:G)>1; INDEX(Транзакции!G:G; COUNTA(Транзакции!G:G)); B2)'],
+            ["Текущий баланс", '=IF(COUNTA(Транзакции!G:G)>1; INDEX(Транзакции!G:G; COUNTA(Транзакции!G:G)); 0)'],
             ["", ""],
             ["ТЕКУЩИЙ МЕСЯЦ", ""],
             ["Доходы", f'=SUMIFS(Транзакции!F:F; Транзакции!C:C; "доход"; Транзакции!A:A; ">="&{month_start}; Транзакции!A:A; "<="&{month_end})'],
@@ -255,17 +255,21 @@ def get_last_balance() -> float:
         all_values = worksheet.get_all_values()
         if len(all_values) <= 1:
             summary = spreadsheet.worksheet("Сводка")
-            value = summary.acell("B2").value
-            return float(value) if value else 0
+            value = summary.acell("B5").value
+            return float(value.replace(' ', '').replace(',', '.')) if value else 0
 
-        last_row = all_values[-1]
-        if len(last_row) >= 7 and last_row[6]:
-            try:
-                return float(last_row[6])
-            except ValueError:
-                return 0
+        for row in reversed(all_values[1:]):
+            if len(row) >= 7 and row[6] and row[6].strip():
+                try:
+                    balance = float(row[6].replace(' ', '').replace(',', '.'))
+                    return balance
+                except ValueError:
+                    continue
 
-        return 0
+        summary = spreadsheet.worksheet("Сводка")
+        value = summary.acell("B5").value
+        return float(value.replace(' ', '').replace(',', '.')) if value else 0
+
     except Exception as e:
         logger.error(f"Ошибка получения баланса: {e}")
         return 0

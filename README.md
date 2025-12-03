@@ -1,138 +1,126 @@
-# Finans-Nova
+<div align="center">
 
-Telegram-бот для учёта личных финансов с голосовым вводом.
+# Finans Nova
 
-## Что это
+### Telegram-бот для учёта финансов с голосовым вводом и AI-категоризацией
 
-Бот для трекинга расходов и доходов. Говоришь голосом или пишешь текст — бот распознаёт, категоризирует и сохраняет в Google Sheets. Всё автоматически.
+[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?style=flat&logo=python&logoColor=white)](https://python.org)
+[![Telegram Bot](https://img.shields.io/badge/Telegram-Bot-26A5E4?style=flat&logo=telegram&logoColor=white)](https://core.telegram.org/bots)
+[![License](https://img.shields.io/badge/License-MIT-green.svg?style=flat)](LICENSE)
 
-## Стек
+![GitHub last commit](https://img.shields.io/github/last-commit/zavet-g/finans-nova?style=flat)
+![GitHub repo size](https://img.shields.io/github/repo-size/zavet-g/finans-nova?style=flat)
 
-- Python 3.11+
-- python-telegram-bot 20+
-- OpenAI Whisper (локальный STT)
-- YandexGPT (категоризация)
-- Google Sheets API (хранение)
-- matplotlib (графики)
-- Docker
+</div>
 
-## Как работает
+---
+
+## Суть проекта
+
+Говоришь или пишешь — бот распознаёт, категоризирует и сохраняет транзакции в Google Sheets. Whisper STT локально, YandexGPT для AI-анализа, автоматические отчёты с графиками.
 
 ```
-Голос/текст → Whisper STT → YandexGPT → подтверждение → Google Sheets
+Голос/Текст → Whisper → YandexGPT → Подтверждение → Google Sheets
 ```
 
-### Flow
+## Технологии
 
-1. Пользователь отправляет голосовое или текст: "такси до работы 500, кофе 250"
-2. Whisper транскрибирует аудио (если голос)
-3. YandexGPT парсит текст, выделяет каждую транзакцию отдельно с контекстом
-4. Бот показывает распознанное и просит подтвердить
-5. После подтверждения — запись в Google Sheets
-6. Автоматический пересчёт баланса и сводки
+<div align="center">
 
-### Категории
+![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![PyTorch](https://img.shields.io/badge/PyTorch-EE4C2C?style=for-the-badge&logo=pytorch&logoColor=white)
+![Telegram](https://img.shields.io/badge/Telegram-26A5E4?style=for-the-badge&logo=telegram&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)
+![Google Sheets](https://img.shields.io/badge/Google_Sheets-34A853?style=for-the-badge&logo=google-sheets&logoColor=white)
 
-Расходы: Еда, Жильё и быт, Такси, Здоровье, Развлечения, Одежда, Подписки, Подарки, Прочее
+</div>
 
-Доходы: одна категория "Доход"
+**Core:** python-telegram-bot • OpenAI Whisper • YandexGPT • Google Sheets API • matplotlib • APScheduler
 
 ## Возможности
 
-- Голосовой ввод через Whisper (модель medium)
-- AI-категоризация через YandexGPT с fallback на ключевые слова
-- Множественные транзакции в одном сообщении
-- Редактирование перед сохранением (категория, сумма, описание)
-- Графики: pie chart, bar chart, сравнение с прошлым месяцем
-- Аналитика за произвольный период с AI-отчётом
-- CSV-экспорт
-- Автоотчёты по расписанию
+- **Голосовой ввод** через Whisper (модель medium, локально)
+- **AI-категоризация** с контекстом через YandexGPT
+- **Множественные транзакции** в одном сообщении
+- **Интерактивное редактирование** перед сохранением
+- **Графики и аналитика** с AI-отчётами
+- **CSV-экспорт** и автоматические отчёты по расписанию
 
-## Структура Google Sheets
-
-Два листа:
-
-**Транзакции** — лог всех операций
-| Дата | Время | Тип | Категория | Описание | Сумма | Баланс |
-
-**Сводка** — агрегированные данные с формулами SUMIFS
-
-## Установка
+## Быстрый старт
 
 ### Требования
 
 - Python 3.11+
-- FFmpeg (обязателен для конвертации OGG → WAV)
+- FFmpeg
 - Google Service Account
-
-### Переменные окружения
-
-```bash
-cp .env.example .env
-```
-
-```
-TELEGRAM_BOT_TOKEN=
-YANDEX_GPT_API_KEY=
-YANDEX_GPT_FOLDER_ID=
-GOOGLE_SHEETS_CREDENTIALS_FILE=credentials/service_account.json
-GOOGLE_SHEETS_SPREADSHEET_ID=
-ALLOWED_USER_IDS=123456789,987654321
-```
 
 ### Локальный запуск
 
 ```bash
 pip install -r requirements.txt
+cp .env.example .env
 python src/main.py
 ```
 
 ### Docker
 
 ```bash
-make build
+docker compose up -d
+# или используйте Makefile
 make run
 make logs
 make stop
 ```
 
-## Структура проекта
+### Переменные окружения
+
+```bash
+TELEGRAM_BOT_TOKEN=             # BotFather токен
+YANDEX_GPT_API_KEY=             # Yandex Cloud API ключ
+YANDEX_GPT_FOLDER_ID=           # Yandex Cloud folder ID
+GOOGLE_SHEETS_CREDENTIALS_FILE= # путь к service_account.json
+GOOGLE_SHEETS_SPREADSHEET_ID=   # ID таблицы
+ALLOWED_USER_IDS=               # список user_id через запятую
+```
+
+## Архитектура
 
 ```
 src/
-├── main.py              # Точка входа
-├── config.py            # Конфигурация из .env
 ├── bot/
-│   ├── handlers/        # voice, text, callbacks, menu
-│   ├── keyboards.py     # Inline-кнопки
-│   └── states.py        # Состояния диалога
+│   ├── handlers/      # voice, text, callbacks, menu
+│   ├── keyboards.py   # inline-клавиатуры
+│   └── states.py      # состояния ConversationHandler
 ├── services/
-│   ├── speech.py        # Whisper STT
-│   ├── ai_analyzer.py   # YandexGPT
-│   ├── sheets.py        # Google Sheets CRUD
-│   ├── charts.py        # matplotlib графики
-│   └── scheduler.py     # APScheduler
+│   ├── speech.py      # Whisper STT
+│   ├── ai_analyzer.py # YandexGPT
+│   ├── sheets.py      # Google Sheets CRUD
+│   ├── charts.py      # matplotlib графики
+│   └── scheduler.py   # APScheduler
 ├── models/
-│   ├── transaction.py   # Pydantic модель
-│   └── category.py      # Категории
+│   ├── transaction.py # Pydantic модель
+│   └── category.py    # категории
 └── utils/
-    ├── audio.py         # FFmpeg конвертация
-    └── formatters.py    # Форматирование
+    ├── audio.py       # FFmpeg конвертация
+    └── formatters.py  # форматирование сообщений
 ```
 
-## Преимущества
+### Google Sheets структура
 
-**Голосовой ввод** — не нужно печатать, просто говоришь. Whisper работает локально, не зависит от внешних API.
+Автоматически создаются 2 листа:
 
-**Контекстные описания** — AI понимает контекст. "такси до работы" → категория Такси, описание "До работы". "цветы жене" → категория Подарки, описание "Цветы жене".
+- **Транзакции** — мастер-лог с автоматическим расчётом баланса
+- **Сводка** — статистика текущего месяца, расходы по категориям, формулы SUMIFS
 
-**Множественные транзакции** — одним сообщением добавляешь несколько покупок. "обед 400, кофе 250, такси 500" — три отдельные записи.
+## Почему это работает
 
-**Google Sheets** — данные всегда доступны, можно строить свои отчёты, делиться с семьёй.
+**Контекстная AI-категоризация** — YandexGPT понимает "такси до работы" как Такси с описанием "До работы", а не просто keyword matching.
 
-**Fallback** — если YandexGPT недоступен, категоризация работает по ключевым словам.
+**Локальный Whisper** — приватность данных, нет зависимости от внешних STT API.
 
-**Приватность** — Whisper локальный, данные только в твоём Google Sheets. Бот работает только для указанных user_id.
+**Множественные транзакции** — "обед 400, кофе 250, такси 500" → три отдельные записи с правильными категориями.
+
+**Fallback-стратегия** — если YandexGPT недоступен, работает категоризация по ключевым словам.
 
 ## Тесты
 
@@ -143,3 +131,11 @@ pytest tests/ -v
 ## Лицензия
 
 MIT
+
+---
+
+<div align="center">
+
+Made with ❤️ for personal finance tracking
+
+</div>
