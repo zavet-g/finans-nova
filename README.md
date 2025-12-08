@@ -192,33 +192,12 @@ graph LR
 
 **Fallback-стратегия** — если YandexGPT недоступен, работает категоризация по ключевым словам.
 
-## Статистика проекта
+## Статистика
 
 <div align="center">
 
-![Repo Card](https://github-readme-stats.vercel.app/api/pin/?username=zavet-g&repo=finans-nova&theme=tokyonight&hide_border=true)
-
-</div>
-
-## Тесты
-
-```bash
-pytest tests/ -v
-```
-
-## Лицензия
-
-MIT
-
----
-
-<div align="center">
-
-### Made with ❤️ for personal finance tracking
-
-[![Star History](https://img.shields.io/github/stars/zavet-g/finans-nova?style=social)](https://github.com/zavet-g/finans-nova/stargazers)
-[![Contributors](https://img.shields.io/github/contributors/zavet-g/finans-nova?style=flat&color=blue)](https://github.com/zavet-g/finans-nova/graphs/contributors)
-
-**[⬆ Back to Top](#finans-nova)**
+[![GitHub stars](https://img.shields.io/github/stars/zavet-g/finans-nova?style=for-the-badge&logo=github&color=yellow)](https://github.com/zavet-g/finans-nova/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/zavet-g/finans-nova?style=for-the-badge&logo=github&color=blue)](https://github.com/zavet-g/finans-nova/network/members)
+[![GitHub issues](https://img.shields.io/github/issues/zavet-g/finans-nova?style=for-the-badge&logo=github&color=red)](https://github.com/zavet-g/finans-nova/issues)
 
 </div>
