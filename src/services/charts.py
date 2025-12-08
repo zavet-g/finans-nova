@@ -25,38 +25,72 @@ CATEGORY_COLORS = {
 
 
 def generate_pie_chart(data: dict, title: str = "Расходы по категориям") -> BytesIO:
-    """Генерирует круговую диаграмму расходов."""
+    """Генерирует donut-диаграмму с легендой справа, отсортированной по убыванию."""
     if not data:
         return generate_empty_chart("Нет данных для отображения")
 
-    categories = list(data.keys())
-    amounts = list(data.values())
-
-    total = sum(amounts)
+    total = sum(data.values())
     if total == 0:
         return generate_empty_chart("Нет расходов за период")
 
+    sorted_data = dict(sorted(data.items(), key=lambda x: x[1], reverse=True))
+    categories = list(sorted_data.keys())
+    amounts = list(sorted_data.values())
+
     colors = [CATEGORY_COLORS.get(cat, "#BDC3C7") for cat in categories]
 
-    fig, ax = plt.subplots(figsize=(10, 8))
+    fig, (ax_pie, ax_legend) = plt.subplots(1, 2, figsize=(14, 7), gridspec_kw={'width_ratios': [1, 0.8]})
 
-    wedges, texts, autotexts = ax.pie(
+    wedges, texts, autotexts = ax_pie.pie(
         amounts,
-        labels=categories,
-        autopct=lambda pct: f'{pct:.1f}%\n({int(pct/100*total):,} руб.)'.replace(',', ' '),
+        autopct=lambda pct: f'{pct:.1f}%' if pct > 5 else '',
         colors=colors,
         startangle=90,
-        explode=[0.02] * len(categories),
+        wedgeprops=dict(width=0.6, edgecolor='white', linewidth=2),
+        pctdistance=0.75,
     )
 
     for autotext in autotexts:
-        autotext.set_fontsize(9)
+        autotext.set_fontsize(10)
         autotext.set_weight('bold')
+        autotext.set_color('white')
 
-    for text in texts:
-        text.set_fontsize(10)
+    centre_circle = plt.Circle((0, 0), 0.35, fc='white')
+    ax_pie.add_patch(centre_circle)
 
-    ax.set_title(title, fontsize=14, fontweight='bold', pad=20)
+    ax_pie.text(0, 0, f'{int(total):,}\nруб.'.replace(',', ' '),
+                ha='center', va='center', fontsize=14, fontweight='bold', color='#2C3E50')
+
+    ax_pie.set_title(title, fontsize=14, fontweight='bold', pad=20)
+
+    ax_legend.axis('off')
+
+    legend_items = []
+    for i, (cat, amount) in enumerate(zip(categories, amounts)):
+        pct = (amount / total) * 100
+        legend_items.append({
+            'color': colors[i],
+            'category': cat,
+            'amount': amount,
+            'pct': pct
+        })
+
+    y_start = 0.95
+    y_step = 0.08
+    for i, item in enumerate(legend_items):
+        y_pos = y_start - i * y_step
+
+        ax_legend.add_patch(plt.Rectangle((0.05, y_pos - 0.025), 0.08, 0.05,
+                                           facecolor=item['color'], edgecolor='none',
+                                           transform=ax_legend.transAxes))
+
+        ax_legend.text(0.18, y_pos, item['category'],
+                      fontsize=11, fontweight='bold', va='center',
+                      transform=ax_legend.transAxes)
+
+        ax_legend.text(0.95, y_pos, f"{int(item['amount']):,} руб. ({item['pct']:.1f}%)".replace(',', ' '),
+                      fontsize=10, va='center', ha='right',
+                      transform=ax_legend.transAxes, color='#7F8C8D')
 
     plt.tight_layout()
 
@@ -210,14 +244,14 @@ def generate_empty_chart(message: str) -> BytesIO:
 
 
 def generate_monthly_summary_chart(summary: dict, month_name: str, year: int) -> BytesIO:
-    """Генерирует сводную диаграмму за месяц."""
+    """Генерирует сводную диаграмму за месяц с donut-chart."""
     income = summary.get("income", 0)
     expenses = summary.get("expenses", 0)
     balance = summary.get("balance", 0)
 
-    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+    fig = plt.figure(figsize=(16, 7))
 
-    ax1 = axes[0]
+    ax1 = fig.add_subplot(1, 3, 1)
     categories = ['Доходы', 'Расходы']
     amounts = [income, expenses]
     colors = ['#2ECC71', '#E74C3C']
@@ -227,7 +261,7 @@ def generate_monthly_summary_chart(summary: dict, month_name: str, year: int) ->
     for bar, amount in zip(bars, amounts):
         ax1.text(
             bar.get_x() + bar.get_width() / 2,
-            bar.get_height() + max(amounts) * 0.02,
+            bar.get_height() + max(amounts) * 0.02 if amounts else 0,
             f'{int(amount):,} руб.'.replace(',', ' '),
             ha='center',
             fontsize=12,
@@ -241,7 +275,7 @@ def generate_monthly_summary_chart(summary: dict, month_name: str, year: int) ->
     ax1.spines['top'].set_visible(False)
     ax1.spines['right'].set_visible(False)
 
-    ax2 = axes[1]
+    ax2 = fig.add_subplot(1, 3, 2)
     by_category = summary.get("by_category", {})
 
     if by_category:
@@ -250,25 +284,61 @@ def generate_monthly_summary_chart(summary: dict, month_name: str, year: int) ->
         cat_amounts = list(sorted_cats.values())
         cat_colors = [CATEGORY_COLORS.get(cat, "#BDC3C7") for cat in cat_names]
 
-        if len(cat_names) > 5:
-            other_sum = sum(cat_amounts[5:])
-            cat_names = cat_names[:5] + ['Остальное']
-            cat_amounts = cat_amounts[:5] + [other_sum]
-            cat_colors = cat_colors[:5] + ['#BDC3C7']
+        if len(cat_names) > 6:
+            other_sum = sum(cat_amounts[6:])
+            cat_names = cat_names[:6] + ['Остальное']
+            cat_amounts = cat_amounts[:6] + [other_sum]
+            cat_colors = cat_colors[:6] + ['#BDC3C7']
+
+        total_expenses = sum(cat_amounts)
 
         wedges, texts, autotexts = ax2.pie(
             cat_amounts,
-            labels=cat_names,
-            autopct='%1.1f%%',
+            autopct=lambda pct: f'{pct:.0f}%' if pct > 8 else '',
             colors=cat_colors,
-            startangle=90
+            startangle=90,
+            wedgeprops=dict(width=0.55, edgecolor='white', linewidth=2),
+            pctdistance=0.75,
         )
-        ax2.set_title('Расходы по категориям', fontsize=12, fontweight='bold')
+
+        for autotext in autotexts:
+            autotext.set_fontsize(9)
+            autotext.set_weight('bold')
+            autotext.set_color('white')
+
+        centre_circle = plt.Circle((0, 0), 0.4, fc='white')
+        ax2.add_patch(centre_circle)
+
+        ax2.text(0, 0, f'{int(total_expenses):,}'.replace(',', ' '),
+                 ha='center', va='center', fontsize=12, fontweight='bold', color='#2C3E50')
+
+        ax2.set_title('Расходы', fontsize=12, fontweight='bold')
+
+        ax3 = fig.add_subplot(1, 3, 3)
+        ax3.axis('off')
+
+        y_start = 0.9
+        y_step = 0.12
+        for i, (name, amount) in enumerate(zip(cat_names, cat_amounts)):
+            y_pos = y_start - i * y_step
+            pct = (amount / total_expenses) * 100 if total_expenses > 0 else 0
+
+            ax3.add_patch(plt.Rectangle((0.05, y_pos - 0.03), 0.08, 0.06,
+                                        facecolor=cat_colors[i], edgecolor='none',
+                                        transform=ax3.transAxes))
+
+            ax3.text(0.18, y_pos, name,
+                    fontsize=10, fontweight='bold', va='center',
+                    transform=ax3.transAxes)
+
+            ax3.text(0.95, y_pos, f"{int(amount):,} ({pct:.1f}%)".replace(',', ' '),
+                    fontsize=9, va='center', ha='right',
+                    transform=ax3.transAxes, color='#7F8C8D')
     else:
         ax2.text(0.5, 0.5, 'Нет расходов', ha='center', va='center', fontsize=12)
         ax2.axis('off')
 
-    fig.suptitle(f'Финансовая сводка за {month_name} {year}', fontsize=14, fontweight='bold', y=1.02)
+    fig.suptitle(f'Финансовая сводка за {month_name} {year}', fontsize=14, fontweight='bold', y=0.98)
 
     plt.tight_layout()
 
