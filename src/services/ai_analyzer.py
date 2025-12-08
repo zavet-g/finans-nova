@@ -303,10 +303,17 @@ def _build_enriched_prompt(data: dict, period_name: str) -> str:
 
     comparison_text = ""
     if comparison:
-        comparison_text = f"""
+        expenses_change = comparison.get('expenses_change')
+        prev_expenses = comparison.get('prev_expenses', 0)
+
+        if expenses_change is not None:
+            comparison_text = f"""
 
 СРАВНЕНИЕ С ПРОШЛЫМ ПЕРИОДОМ:
-- Расходы: {comparison.get('expenses_change', 0):+.1f}% (было {comparison.get('prev_expenses', 0)} руб)"""
+- Расходы: {expenses_change:+.1f}% (было {prev_expenses} руб)"""
+        elif prev_expenses == 0:
+            comparison_text = "\n\nСРАВНЕНИЕ С ПРОШЛЫМ ПЕРИОДОМ:\n- Нет данных за прошлый период"
+
         if comparison.get("growing_categories"):
             comparison_text += "\n- Выросли:"
             for g in comparison["growing_categories"]:
