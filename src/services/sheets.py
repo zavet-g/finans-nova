@@ -517,6 +517,194 @@ def export_to_csv() -> str:
     return "\n".join(lines)
 
 
+def get_enriched_analytics(start_date: datetime, end_date: datetime, prev_start: datetime = None, prev_end: datetime = None) -> dict:
+    """Возвращает обогащённые данные для AI-анализа."""
+    summary = get_period_summary(start_date, end_date)
+    transactions = summary.get("transactions", [])
+
+    prev_summary = None
+    if prev_start and prev_end:
+        prev_summary = get_period_summary(prev_start, prev_end)
+
+    enriched = {
+        "totals": {
+            "income": summary.get("income", 0),
+            "expenses": summary.get("expenses", 0),
+            "balance": summary.get("balance", 0),
+            "savings_rate": round((summary.get("income", 0) - summary.get("expenses", 0)) / summary.get("income", 1) * 100, 1) if summary.get("income", 0) > 0 else 0,
+            "transaction_count": len(transactions),
+        },
+        "categories": _analyze_categories(transactions, summary.get("by_category", {}), prev_summary),
+        "patterns": _analyze_patterns(transactions),
+        "comparison": _analyze_comparison(summary, prev_summary) if prev_summary else None,
+    }
+
+    return enriched
+
+
+def _analyze_categories(transactions: list, by_category: dict, prev_summary: dict = None) -> list:
+    """Анализирует категории с детальной статистикой."""
+    total_expenses = sum(by_category.values()) or 1
+    prev_by_category = prev_summary.get("by_category", {}) if prev_summary else {}
+
+    categories = []
+    for cat_name, amount in sorted(by_category.items(), key=lambda x: x[1], reverse=True):
+        cat_transactions = [t for t in transactions if t.get("category") == cat_name and t.get("type") == "расход"]
+
+        if not cat_transactions:
+            continue
+
+        amounts = [t.get("amount", 0) for t in cat_transactions]
+        max_tx = max(cat_transactions, key=lambda x: x.get("amount", 0), default={})
+
+        weekday_amount = 0
+        weekend_amount = 0
+        for t in cat_transactions:
+            try:
+                tx_date = datetime.strptime(t.get("date", ""), "%Y-%m-%d")
+                if tx_date.weekday() < 5:
+                    weekday_amount += t.get("amount", 0)
+                else:
+                    weekend_amount += t.get("amount", 0)
+            except ValueError:
+                continue
+
+        prev_amount = prev_by_category.get(cat_name, 0)
+        trend = round((amount - prev_amount) / prev_amount * 100, 1) if prev_amount > 0 else None
+
+        categories.append({
+            "name": cat_name,
+            "amount": amount,
+            "percent": round(amount / total_expenses * 100, 1),
+            "transaction_count": len(cat_transactions),
+            "avg_transaction": round(sum(amounts) / len(amounts)) if amounts else 0,
+            "max_transaction": {
+                "amount": max_tx.get("amount", 0),
+                "description": max_tx.get("description", "")
+            },
+            "trend_vs_prev_period": trend,
+            "weekday_amount": weekday_amount,
+            "weekend_amount": weekend_amount,
+        })
+
+    return categories
+
+
+def _analyze_patterns(transactions: list) -> dict:
+    """Анализирует паттерны в транзакциях."""
+    expense_transactions = [t for t in transactions if t.get("type") == "расход"]
+
+    if not expense_transactions:
+        return {"anomalies": [], "top_descriptions": [], "time_patterns": {}}
+
+    amounts = [t.get("amount", 0) for t in expense_transactions]
+    avg_amount = sum(amounts) / len(amounts) if amounts else 0
+    std_amount = (sum((a - avg_amount) ** 2 for a in amounts) / len(amounts)) ** 0.5 if len(amounts) > 1 else 0
+    threshold = avg_amount + 2 * std_amount
+
+    anomalies = []
+    for t in expense_transactions:
+        amount = t.get("amount", 0)
+        if amount > threshold and amount > avg_amount * 3:
+            anomalies.append({
+                "date": t.get("date"),
+                "category": t.get("category"),
+                "description": t.get("description"),
+                "amount": amount,
+                "times_avg": round(amount / avg_amount, 1) if avg_amount > 0 else 0,
+            })
+    anomalies = sorted(anomalies, key=lambda x: x["amount"], reverse=True)[:5]
+
+    description_totals = {}
+    description_counts = {}
+    for t in expense_transactions:
+        desc = t.get("description", "").lower().strip()
+        if len(desc) < 3:
+            continue
+        key = desc[:30]
+        description_totals[key] = description_totals.get(key, 0) + t.get("amount", 0)
+        description_counts[key] = description_counts.get(key, 0) + 1
+
+    top_descriptions = []
+    for desc, total in sorted(description_totals.items(), key=lambda x: x[1], reverse=True)[:5]:
+        top_descriptions.append({
+            "description": desc,
+            "total": total,
+            "count": description_counts.get(desc, 0),
+        })
+
+    day_totals = {i: 0 for i in range(7)}
+    hour_totals = {}
+    for t in expense_transactions:
+        try:
+            tx_date = datetime.strptime(t.get("date", ""), "%Y-%m-%d")
+            day_totals[tx_date.weekday()] += t.get("amount", 0)
+        except ValueError:
+            continue
+
+    day_names = ["понедельник", "вторник", "среда", "четверг", "пятница", "суббота", "воскресенье"]
+    max_day_idx = max(day_totals, key=day_totals.get)
+
+    weekday_total = sum(day_totals[i] for i in range(5))
+    weekend_total = sum(day_totals[i] for i in range(5, 7))
+
+    time_patterns = {
+        "most_expensive_day": day_names[max_day_idx],
+        "most_expensive_day_amount": day_totals[max_day_idx],
+        "weekday_avg": round(weekday_total / 5) if weekday_total else 0,
+        "weekend_avg": round(weekend_total / 2) if weekend_total else 0,
+    }
+
+    return {
+        "anomalies": anomalies,
+        "top_descriptions": top_descriptions,
+        "time_patterns": time_patterns,
+    }
+
+
+def _analyze_comparison(current: dict, previous: dict) -> dict:
+    """Сравнивает текущий период с предыдущим."""
+    curr_expenses = current.get("expenses", 0)
+    prev_expenses = previous.get("expenses", 0)
+    curr_income = current.get("income", 0)
+    prev_income = previous.get("income", 0)
+
+    expenses_change = round((curr_expenses - prev_expenses) / prev_expenses * 100, 1) if prev_expenses > 0 else None
+    income_change = round((curr_income - prev_income) / prev_income * 100, 1) if prev_income > 0 else None
+
+    curr_by_cat = current.get("by_category", {})
+    prev_by_cat = previous.get("by_category", {})
+
+    growing = []
+    shrinking = []
+
+    all_categories = set(curr_by_cat.keys()) | set(prev_by_cat.keys())
+    for cat in all_categories:
+        curr_val = curr_by_cat.get(cat, 0)
+        prev_val = prev_by_cat.get(cat, 0)
+
+        if prev_val > 0:
+            change = round((curr_val - prev_val) / prev_val * 100, 1)
+            if change > 20:
+                growing.append({"category": cat, "change": change, "current": curr_val, "previous": prev_val})
+            elif change < -20:
+                shrinking.append({"category": cat, "change": change, "current": curr_val, "previous": prev_val})
+        elif curr_val > 0:
+            growing.append({"category": cat, "change": None, "current": curr_val, "previous": 0, "note": "новая категория"})
+
+    growing = sorted(growing, key=lambda x: x.get("change") or 999, reverse=True)
+    shrinking = sorted(shrinking, key=lambda x: x.get("change") or 0)
+
+    return {
+        "expenses_change": expenses_change,
+        "income_change": income_change,
+        "growing_categories": growing[:3],
+        "shrinking_categories": shrinking[:3],
+        "prev_expenses": prev_expenses,
+        "prev_income": prev_income,
+    }
+
+
 def set_initial_balance(balance: float):
     """Устанавливает начальный баланс в Сводке."""
     try:

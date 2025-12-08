@@ -4,7 +4,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
 import pytz
 
-from src.services.sheets import get_month_summary, get_month_transactions_markdown, create_backup
+from src.services.sheets import get_month_summary, get_month_transactions_markdown, create_backup, get_enriched_analytics
 from src.services.ai_analyzer import generate_monthly_report
 from src.utils.formatters import month_name
 
@@ -37,14 +37,25 @@ async def generate_and_send_monthly_report():
     try:
         summary = get_month_summary(year, month)
         previous_summary = get_month_summary(prev_year, prev_month)
-        transactions_md = get_month_transactions_markdown(year, month, limit=100)
+
+        start_date = datetime(year, month, 1)
+        if month == 12:
+            end_date = datetime(year + 1, 1, 1)
+        else:
+            end_date = datetime(year, month + 1, 1)
+
+        prev_start = datetime(prev_year, prev_month, 1)
+        prev_end = start_date
+
+        enriched_data = get_enriched_analytics(start_date, end_date, prev_start, prev_end)
 
         report = await generate_monthly_report(
             summary=summary,
             previous_summary=previous_summary,
-            transactions_markdown=transactions_md,
+            transactions_markdown="",
             month_name=month_name(month),
             year=year,
+            enriched_data=enriched_data,
         )
 
         await _report_callback(report)

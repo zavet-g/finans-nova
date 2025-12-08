@@ -208,25 +208,29 @@ async def period_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         start_date = now - delta
         end_date = now
 
-        from src.services.sheets import get_period_summary, get_period_transactions_markdown
+        prev_start = start_date - delta
+        prev_end = start_date
+
+        from src.services.sheets import get_period_summary, get_enriched_analytics
         from src.services.ai_analyzer import generate_period_report
 
         summary = get_period_summary(start_date, end_date)
 
         if summary.get("expenses", 0) == 0 and summary.get("income", 0) == 0:
             await query.message.reply_text(
-                f"📊 Анализ за {period_name}\n\n"
+                f"Анализ за {period_name}\n\n"
                 "Нет транзакций за выбранный период.",
                 reply_markup=main_menu_keyboard()
             )
             return
 
-        transactions_md = get_period_transactions_markdown(start_date, end_date, limit=100)
+        enriched_data = get_enriched_analytics(start_date, end_date, prev_start, prev_end)
 
         report = await generate_period_report(
             summary=summary,
-            transactions_markdown=transactions_md,
+            transactions_markdown="",
             period_name=period_name,
+            enriched_data=enriched_data,
         )
 
         await query.message.reply_text(

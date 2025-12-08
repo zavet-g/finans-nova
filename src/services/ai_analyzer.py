@@ -105,13 +105,19 @@ async def generate_monthly_report(
     previous_summary: dict,
     transactions_markdown: str,
     month_name: str,
-    year: int
+    year: int,
+    enriched_data: dict = None,
 ) -> str:
     """Генерирует ежемесячный финансовый отчёт через YandexGPT."""
     if not YANDEX_GPT_API_KEY or not YANDEX_GPT_FOLDER_ID:
         return generate_fallback_report(summary, previous_summary, month_name, year)
 
-    prompt = f"""Ты — личный финансовый аналитик, который непредвзято оценивает траты
+    period_name = f"{month_name} {year}"
+
+    if enriched_data:
+        prompt = _build_enriched_prompt(enriched_data, period_name)
+    else:
+        prompt = f"""Ты — личный финансовый аналитик, который непредвзято оценивает траты
 и даёт честные, объективные рекомендации. Без лишних слов.
 
 СВОДКА ЗА ТЕКУЩИЙ МЕСЯЦ ({month_name} {year}):
@@ -233,12 +239,124 @@ async def generate_period_report(
     summary: dict,
     transactions_markdown: str,
     period_name: str,
+    enriched_data: dict = None,
 ) -> str:
     """Генерирует AI-отчёт за произвольный период."""
     if not YANDEX_GPT_API_KEY or not YANDEX_GPT_FOLDER_ID:
         return generate_fallback_period_report(summary, period_name)
 
-    prompt = f"""Ты — личный финансовый аналитик, который непредвзято оценивает траты
+    if enriched_data:
+        prompt = _build_enriched_prompt(enriched_data, period_name)
+    else:
+        prompt = _build_simple_prompt(summary, transactions_markdown, period_name)
+
+    try:
+        return await call_yandex_gpt(prompt)
+    except Exception as e:
+        logger.error(f"YandexGPT period report failed: {e}")
+        return generate_fallback_period_report(summary, period_name)
+
+
+def _build_enriched_prompt(data: dict, period_name: str) -> str:
+    """Строит промпт с обогащёнными данными."""
+    totals = data.get("totals", {})
+    categories = data.get("categories", [])
+    patterns = data.get("patterns", {})
+    comparison = data.get("comparison")
+
+    categories_text = ""
+    for cat in categories:
+        trend_str = ""
+        if cat.get("trend_vs_prev_period") is not None:
+            trend_str = f", тренд: {cat['trend_vs_prev_period']:+.1f}%"
+
+        weekend_note = ""
+        if cat.get("weekend_amount", 0) > cat.get("weekday_amount", 0) * 0.5:
+            weekend_note = f", выходные: {cat['weekend_amount']} руб"
+
+        categories_text += f"""
+- {cat['name']}: {cat['amount']} руб ({cat['percent']}%)
+  Транзакций: {cat['transaction_count']}, средняя: {cat['avg_transaction']} руб{trend_str}{weekend_note}
+  Макс: {cat['max_transaction']['amount']} руб ({cat['max_transaction']['description']})"""
+
+    anomalies_text = ""
+    if patterns.get("anomalies"):
+        anomalies_text = "\n\nАНОМАЛЬНЫЕ ТРАТЫ (превышают среднее в 3+ раза):"
+        for a in patterns["anomalies"]:
+            anomalies_text += f"\n- {a['date']}: {a['description']} — {a['amount']} руб (x{a['times_avg']} от среднего)"
+
+    top_spending_text = ""
+    if patterns.get("top_descriptions"):
+        top_spending_text = "\n\nТОП-5 СТАТЕЙ РАСХОДОВ:"
+        for t in patterns["top_descriptions"]:
+            top_spending_text += f"\n- {t['description']}: {t['total']} руб ({t['count']} раз)"
+
+    time_patterns_text = ""
+    tp = patterns.get("time_patterns", {})
+    if tp:
+        time_patterns_text = f"""
+
+ВРЕМЕННЫЕ ПАТТЕРНЫ:
+- Самый затратный день: {tp.get('most_expensive_day', 'н/д')} ({tp.get('most_expensive_day_amount', 0)} руб)
+- Средние траты в будни: {tp.get('weekday_avg', 0)} руб/день
+- Средние траты в выходные: {tp.get('weekend_avg', 0)} руб/день"""
+
+    comparison_text = ""
+    if comparison:
+        comparison_text = f"""
+
+СРАВНЕНИЕ С ПРОШЛЫМ ПЕРИОДОМ:
+- Расходы: {comparison.get('expenses_change', 0):+.1f}% (было {comparison.get('prev_expenses', 0)} руб)"""
+        if comparison.get("growing_categories"):
+            comparison_text += "\n- Выросли:"
+            for g in comparison["growing_categories"]:
+                change_str = f"+{g['change']}%" if g.get('change') else "(новая)"
+                comparison_text += f" {g['category']} {change_str},"
+        if comparison.get("shrinking_categories"):
+            comparison_text += "\n- Снизились:"
+            for s in comparison["shrinking_categories"]:
+                comparison_text += f" {s['category']} {s['change']}%,"
+
+    return f"""Ты — персональный финансовый аналитик. Проанализируй данные и дай КОНКРЕТНЫЕ инсайты.
+
+ПЕРИОД: {period_name.upper()}
+
+ИТОГИ:
+- Доходы: {totals.get('income', 0)} руб
+- Расходы: {totals.get('expenses', 0)} руб ({totals.get('savings_rate', 0)}% сохранено)
+- Всего транзакций: {totals.get('transaction_count', 0)}
+
+КАТЕГОРИИ:{categories_text}{anomalies_text}{top_spending_text}{time_patterns_text}{comparison_text}
+
+ИНСТРУКЦИИ:
+Напиши анализ по следующей структуре:
+
+1. КЛЮЧЕВЫЕ ВЫВОДЫ (2-3 пункта)
+Что важного произошло в этот период? Укажи конкретные цифры.
+
+2. ПАТТЕРНЫ ПОВЕДЕНИЯ
+Какие привычки видны в данных? (частые траты, дни недели, аномалии)
+
+3. СРАВНЕНИЕ (если есть данные)
+Что изменилось по сравнению с прошлым периодом и почему это важно?
+
+4. РЕКОМЕНДАЦИИ (2-3 штуки)
+Формат каждой:
+- Действие: [что конкретно сделать]
+- Потенциальная экономия: [сумма] руб/месяц
+- Сложность: легко/средне/сложно
+
+ЗАПРЕТЫ:
+- Не давай абстрактных советов типа "пересмотрите расходы" или "сравните цены"
+- Не предлагай кардинальных изменений образа жизни
+- Не повторяй очевидное из данных без добавления ценности
+
+Формат: структурированный текст с заголовками. Без эмодзи. Кратко и по делу."""
+
+
+def _build_simple_prompt(summary: dict, transactions_markdown: str, period_name: str) -> str:
+    """Строит простой промпт без обогащённых данных (fallback)."""
+    return f"""Ты — личный финансовый аналитик, который непредвзято оценивает траты
 и даёт честные, объективные рекомендации. Без лишних слов.
 
 СВОДКА ЗА {period_name.upper()}:
@@ -260,12 +378,6 @@ async def generate_period_report(
 5. Будь честен и прямолинеен
 
 Формат ответа — структурированный текст без эмодзи."""
-
-    try:
-        return await call_yandex_gpt(prompt)
-    except Exception as e:
-        logger.error(f"YandexGPT period report failed: {e}")
-        return generate_fallback_period_report(summary, period_name)
 
 
 def generate_fallback_period_report(summary: dict, period_name: str) -> str:
