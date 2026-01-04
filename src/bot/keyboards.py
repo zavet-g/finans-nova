@@ -9,6 +9,7 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
         [InlineKeyboardButton("📊 Аналитика", callback_data="menu:analytics")],
         [InlineKeyboardButton("📈 Графики", callback_data="menu:charts")],
         [InlineKeyboardButton("💾 Бэкап и экспорт", callback_data="menu:backup")],
+        [InlineKeyboardButton("🔧 Состояние бота", callback_data="menu:health")],
         [InlineKeyboardButton("📎 Открыть таблицу", callback_data="menu:sheets")],
         [InlineKeyboardButton("❓ Помощь", callback_data="menu:help")],
     ]
@@ -90,5 +91,14 @@ def backup_keyboard() -> InlineKeyboardMarkup:
         [InlineKeyboardButton("📥 Скачать CSV", callback_data="backup:csv")],
         [InlineKeyboardButton("💾 Сделать бэкап сейчас", callback_data="backup:now")],
         [InlineKeyboardButton("◀️ Назад", callback_data="backup:back")],
+    ]
+    return InlineKeyboardMarkup(buttons)
+
+
+def health_keyboard() -> InlineKeyboardMarkup:
+    """Клавиатура состояния бота."""
+    buttons = [
+        [InlineKeyboardButton("🔄 Обновить", callback_data="health:refresh")],
+        [InlineKeyboardButton("◀️ Назад", callback_data="health:back")],
     ]
     return InlineKeyboardMarkup(buttons)

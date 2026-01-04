@@ -12,6 +12,7 @@ from src.config import TELEGRAM_BOT_TOKEN, ALLOWED_USER_IDS
 from src.bot.handlers.menu import start_command
 from src.bot.handlers.text import text_message_handler
 from src.bot.handlers.voice import voice_message_handler
+from src.bot.handlers.admin import health_command, stats_command
 from src.bot.handlers.callbacks import (
     menu_callback,
     period_callback,
@@ -20,12 +21,14 @@ from src.bot.handlers.callbacks import (
     transaction_callback,
     edit_callback,
     category_callback,
+    health_callback,
 )
 
-logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO
-)
+from src.utils.logging_config import setup_logging
+from src.services.health_check import get_health_checker
+from src.services.resource_monitor import get_resource_monitor
+
+setup_logging()
 logger = logging.getLogger(__name__)
 
 _application = None
@@ -33,6 +36,8 @@ _application = None
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
     logger.error(f"Exception while handling an update: {context.error}", exc_info=context.error)
+
+    get_health_checker().record_request(success=False)
 
     if isinstance(context.error, TimedOut):
         logger.warning("Telegram API timeout, continuing...")
@@ -66,6 +71,11 @@ async def send_report_to_users(report: str):
 
 async def post_init(app: Application) -> None:
     logger.info("Initializing bot resources...")
+
+    resource_monitor = get_resource_monitor()
+    await resource_monitor.start_monitoring()
+    logger.info("Resource monitoring started")
+
     try:
         from src.services.sheets_async import async_init_spreadsheet
         await async_init_spreadsheet()
@@ -73,12 +83,16 @@ async def post_init(app: Application) -> None:
     except Exception as e:
         logger.warning(f"Could not initialize spreadsheet: {e}")
 
-    logger.info("Bot initialized, ready to serve")
+    health_status = get_health_checker().get_health_status()
+    logger.info(f"Bot initialized, ready to serve - Status: {health_status['status']}")
 
 
 async def post_shutdown(app: Application) -> None:
     logger.info("Cleaning up resources...")
     try:
+        resource_monitor = get_resource_monitor()
+        await resource_monitor.stop_monitoring()
+
         from src.services.speech import close_speech_session
         from src.services.ai_analyzer import close_gpt_session
         from src.services.sheets_async import shutdown_executor
@@ -87,7 +101,8 @@ async def post_shutdown(app: Application) -> None:
         await close_gpt_session()
         shutdown_executor()
 
-        logger.info("All resources cleaned up")
+        health_status = get_health_checker().get_health_status()
+        logger.info(f"Shutdown complete - Final stats: {health_status['requests']}")
     except Exception as e:
         logger.error(f"Error during cleanup: {e}")
 
@@ -116,6 +131,8 @@ def main():
     _application.add_error_handler(error_handler)
 
     _application.add_handler(CommandHandler("start", start_command))
+    _application.add_handler(CommandHandler("health", health_command))
+    _application.add_handler(CommandHandler("stats", stats_command))
 
     _application.add_handler(CallbackQueryHandler(menu_callback, pattern=r"^menu:"))
     _application.add_handler(CallbackQueryHandler(period_callback, pattern=r"^period:"))
@@ -124,6 +141,7 @@ def main():
     _application.add_handler(CallbackQueryHandler(transaction_callback, pattern=r"^tx:"))
     _application.add_handler(CallbackQueryHandler(edit_callback, pattern=r"^edit:"))
     _application.add_handler(CallbackQueryHandler(category_callback, pattern=r"^cat:"))
+    _application.add_handler(CallbackQueryHandler(health_callback, pattern=r"^health:"))
 
     _application.add_handler(MessageHandler(filters.VOICE, voice_message_handler))
     _application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_message_handler))

@@ -12,6 +12,7 @@ from src.bot.keyboards import (
     confirm_transaction_keyboard,
     edit_transaction_keyboard,
     categories_keyboard,
+    health_keyboard,
 )
 from src.bot.handlers.menu import help_callback
 from src.models.category import TransactionType, get_category_by_code
@@ -58,6 +59,8 @@ async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         await open_sheets(update, context)
     elif action == "help":
         await help_callback(update, context)
+    elif action == "health":
+        await show_health(update, context)
 
 
 async def show_transactions(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -480,3 +483,42 @@ async def category_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             pending_tx.category = category.name
             text = f"Категория изменена.\n\n{pending_tx.format_for_user()}"
             await safe_edit_message(query, text, reply_markup=confirm_transaction_keyboard())
+
+
+async def show_health(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+
+    try:
+        from src.services.health_check import get_health_checker
+        from src.utils.formatters_health import format_health_report
+
+        health_checker = get_health_checker()
+        health_status = health_checker.get_health_status()
+        external_services = await health_checker.check_external_services()
+
+        report = format_health_report(health_status, external_services)
+
+        await safe_edit_message(query, report, reply_markup=health_keyboard())
+    except Exception as e:
+        logger.error(f"Failed to load health status: {e}")
+        error_text = (
+            "🔧 СОСТОЯНИЕ БОТА\n\n"
+            f"Не удалось загрузить информацию.\nОшибка: {str(e)[:100]}"
+        )
+        await safe_edit_message(query, error_text, reply_markup=health_keyboard())
+
+
+async def health_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    query = update.callback_query
+    await query.answer()
+
+    action = query.data.split(":")[1]
+
+    if action == "back":
+        welcome_text = (
+            "Отправь голосовое или текстовое сообщение "
+            "с информацией о расходе/доходе."
+        )
+        await safe_edit_message(query, welcome_text, reply_markup=main_menu_keyboard())
+    elif action == "refresh":
+        await show_health(update, context)

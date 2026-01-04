@@ -12,8 +12,18 @@ logger = logging.getLogger(__name__)
 
 async def voice_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик голосовых сообщений."""
+    from src.utils.rate_limiter import check_rate_limit
+    from src.services.health_check import get_health_checker
+
     user = update.effective_user
     if not is_user_allowed(user.id):
+        return
+
+    if not check_rate_limit(user.id):
+        await update.message.reply_text(
+            "Слишком много запросов. Подожди немного и попробуй снова."
+        )
+        get_health_checker().record_request(success=False)
         return
 
     voice = update.message.voice
@@ -40,9 +50,11 @@ async def voice_message_handler(update: Update, context: ContextTypes.DEFAULT_TY
         await processing_msg.edit_text(f"Распознано: «{text}»")
 
         await process_transaction_text(update, context, text)
+        get_health_checker().record_request(success=True)
 
     except Exception as e:
         logger.error(f"Error processing voice message: {e}")
+        get_health_checker().record_request(success=False)
         await processing_msg.edit_text(
             "Произошла ошибка при обработке голосового сообщения. Попробуй позже."
         )
