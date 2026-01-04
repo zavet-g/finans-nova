@@ -22,7 +22,8 @@
       "Bash(pip3 install:*)",
       "Bash(docker exec:*)",
       "Bash(docker ps:*)",
-      "Bash(./venv/bin/python:*)"
+      "Bash(./venv/bin/python:*)",
+      "Bash(python -m pytest tests/ -v --tb=short)"
     ],
     "deny": [],
     "ask": []

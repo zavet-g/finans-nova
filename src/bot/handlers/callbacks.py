@@ -2,6 +2,7 @@ import logging
 from datetime import datetime, timedelta
 from telegram import Update
 from telegram.ext import ContextTypes
+from telegram.error import TimedOut, BadRequest
 
 from src.bot.keyboards import (
     main_menu_keyboard,
@@ -16,6 +17,26 @@ from src.bot.handlers.menu import help_callback
 from src.models.category import TransactionType, get_category_by_code
 
 logger = logging.getLogger(__name__)
+
+
+async def safe_edit_message(query, text: str, reply_markup=None, max_retries: int = 2):
+    for attempt in range(max_retries):
+        try:
+            return await query.edit_message_text(text, reply_markup=reply_markup)
+        except TimedOut:
+            if attempt < max_retries - 1:
+                logger.warning(f"Edit message timeout, retry {attempt + 1}/{max_retries}")
+                continue
+            logger.warning("Edit message timeout, sending new message instead")
+            return await query.message.reply_text(text, reply_markup=reply_markup)
+        except BadRequest as e:
+            if "message is not modified" in str(e).lower():
+                logger.debug("Message not modified, skipping edit")
+                return None
+            raise
+        except Exception as e:
+            logger.error(f"Failed to edit message: {e}")
+            return await query.message.reply_text(text, reply_markup=reply_markup)
 
 
 async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -44,10 +65,10 @@ async def show_transactions(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     query = update.callback_query
 
     try:
-        from src.services.sheets import get_transactions
+        from src.services.sheets_async import async_get_transactions
         from src.utils.formatters import format_transaction_list
 
-        transactions = get_transactions(limit=10)
+        transactions = await async_get_transactions(limit=10)
         if transactions:
             tx_text = format_transaction_list(transactions)
             text = f"📋 ПОСЛЕДНИЕ ТРАНЗАКЦИИ\n\n{tx_text}"
@@ -101,12 +122,12 @@ async def show_charts(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         await query.message.reply_text("📈 Генерирую графики...")
 
     try:
-        from src.services.sheets import get_expenses_by_category, get_month_summary
+        from src.services.sheets_async import async_get_month_summary
         from src.services.charts import generate_monthly_summary_chart
         from src.utils.formatters import month_name
 
         now = datetime.now()
-        summary = get_month_summary(now.year, now.month)
+        summary = await async_get_month_summary(now.year, now.month)
 
         if summary.get("expenses", 0) == 0 and summary.get("income", 0) == 0:
             await query.message.reply_text(
@@ -211,10 +232,10 @@ async def period_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         prev_start = start_date - delta
         prev_end = start_date
 
-        from src.services.sheets import get_period_summary, get_enriched_analytics
+        from src.services.sheets_async import async_get_period_summary, async_get_enriched_analytics
         from src.services.ai_analyzer import generate_period_report
 
-        summary = get_period_summary(start_date, end_date)
+        summary = await async_get_period_summary(start_date, end_date)
 
         if summary.get("expenses", 0) == 0 and summary.get("income", 0) == 0:
             await query.message.reply_text(
@@ -224,7 +245,7 @@ async def period_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             )
             return
 
-        enriched_data = get_enriched_analytics(start_date, end_date, prev_start, prev_end)
+        enriched_data = await async_get_enriched_analytics(start_date, end_date, prev_start, prev_end)
 
         report = await generate_period_report(
             summary=summary,
@@ -284,8 +305,8 @@ async def backup_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             pass
 
         try:
-            from src.services.sheets import export_to_csv
-            csv_data = export_to_csv()
+            from src.services.sheets_async import async_export_to_csv
+            csv_data = await async_export_to_csv()
 
             from io import BytesIO
             file = BytesIO(csv_data.encode('utf-8'))
@@ -314,8 +335,8 @@ async def backup_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             pass
 
         try:
-            from src.services.sheets import create_backup
-            backup_name = create_backup()
+            from src.services.sheets_async import async_create_backup
+            backup_name = await async_create_backup()
             await query.message.reply_text(
                 f"💾 Бэкап создан!\n\nНазвание: {backup_name}\n\n"
                 "Копия таблицы сохранена на Google Drive.",
@@ -340,8 +361,8 @@ async def transaction_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     if action == "confirm":
         if pending_tx:
             try:
-                from src.services.sheets import add_transaction
-                tx_id = add_transaction(pending_tx)
+                from src.services.sheets_async import async_add_transaction
+                tx_id = await async_add_transaction(pending_tx)
                 text = f"✅ Транзакция #{tx_id} добавлена!\n\n{pending_tx.format_for_user()}"
             except Exception as e:
                 logger.error(f"Failed to save transaction: {e}")
@@ -359,7 +380,7 @@ async def transaction_callback(update: Update, context: ContextTypes.DEFAULT_TYP
                     total = len(pending_list)
                     current = index + 1
                     text += f"\n\n───────────────\n\nТранзакция {current} из {total}:\n\n{next_tx.format_for_user()}"
-                    await query.edit_message_text(text, reply_markup=confirm_transaction_keyboard())
+                    await safe_edit_message(query, text, reply_markup=confirm_transaction_keyboard())
                     return
                 else:
                     context.user_data.pop("pending_transactions", None)
@@ -367,14 +388,14 @@ async def transaction_callback(update: Update, context: ContextTypes.DEFAULT_TYP
                     text += "\n\nВсе транзакции обработаны!"
         else:
             text = "Нет транзакции для подтверждения."
-        await query.edit_message_text(text, reply_markup=main_menu_keyboard())
+        await safe_edit_message(query, text, reply_markup=main_menu_keyboard())
 
     elif action == "edit":
         if pending_tx:
             text = f"✏️ Что изменить?\n\n{pending_tx.format_for_user()}"
-            await query.edit_message_text(text, reply_markup=edit_transaction_keyboard())
+            await safe_edit_message(query, text, reply_markup=edit_transaction_keyboard())
         else:
-            await query.edit_message_text("Нет транзакции для редактирования.", reply_markup=main_menu_keyboard())
+            await safe_edit_message(query, "Нет транзакции для редактирования.", reply_markup=main_menu_keyboard())
 
     elif action == "cancel":
         context.user_data.pop("pending_transaction", None)
@@ -393,7 +414,7 @@ async def transaction_callback(update: Update, context: ContextTypes.DEFAULT_TYP
             else:
                 context.user_data.pop("pending_transactions", None)
                 context.user_data.pop("current_tx_index", None)
-        await query.edit_message_text("❌ Транзакция отменена.", reply_markup=main_menu_keyboard())
+        await safe_edit_message(query, "❌ Транзакция отменена.", reply_markup=main_menu_keyboard())
 
 
 async def edit_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -407,16 +428,16 @@ async def edit_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
     if action == "back":
         if pending_tx:
             text = f"Подтвердить транзакцию?\n\n{pending_tx.format_for_user()}"
-            await query.edit_message_text(text, reply_markup=confirm_transaction_keyboard())
+            await safe_edit_message(query, text, reply_markup=confirm_transaction_keyboard())
         else:
-            await query.edit_message_text(
+            await safe_edit_message(query,
                 "Отправь голосовое или текстовое сообщение.",
                 reply_markup=main_menu_keyboard()
             )
 
     elif action == "category":
         if pending_tx:
-            await query.edit_message_text(
+            await safe_edit_message(query,
                 "Выбери категорию:",
                 reply_markup=categories_keyboard(pending_tx.type)
             )
@@ -428,15 +449,15 @@ async def edit_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             if new_type == TransactionType.INCOME:
                 pending_tx.category = "Доход"
             text = f"Тип изменён.\n\n{pending_tx.format_for_user()}"
-            await query.edit_message_text(text, reply_markup=edit_transaction_keyboard())
+            await safe_edit_message(query, text, reply_markup=edit_transaction_keyboard())
 
     elif action == "amount":
         context.user_data["editing_field"] = "amount"
-        await query.edit_message_text("Введи новую сумму:")
+        await safe_edit_message(query, "Введи новую сумму:")
 
     elif action == "description":
         context.user_data["editing_field"] = "description"
-        await query.edit_message_text("Введи новое описание:")
+        await safe_edit_message(query, "Введи новое описание:")
 
 
 async def category_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -450,7 +471,7 @@ async def category_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
     if action == "back":
         if pending_tx:
             text = f"✏️ Что изменить?\n\n{pending_tx.format_for_user()}"
-            await query.edit_message_text(text, reply_markup=edit_transaction_keyboard())
+            await safe_edit_message(query, text, reply_markup=edit_transaction_keyboard())
         return
 
     if pending_tx:
@@ -458,4 +479,4 @@ async def category_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         if category:
             pending_tx.category = category.name
             text = f"Категория изменена.\n\n{pending_tx.format_for_user()}"
-            await query.edit_message_text(text, reply_markup=confirm_transaction_keyboard())
+            await safe_edit_message(query, text, reply_markup=confirm_transaction_keyboard())

@@ -1,7 +1,6 @@
 import logging
 import asyncio
 import aiohttp
-from aiohttp.resolver import ThreadedResolver
 from pathlib import Path
 
 from src.config import YANDEX_GPT_API_KEY, YANDEX_GPT_FOLDER_ID
@@ -11,6 +10,40 @@ logger = logging.getLogger(__name__)
 
 SPEECHKIT_URL = "https://stt.api.cloud.yandex.net/speech/v1/stt:recognize"
 MAX_RETRIES = 3
+
+_speech_session: aiohttp.ClientSession | None = None
+
+
+async def get_speech_session() -> aiohttp.ClientSession:
+    global _speech_session
+    if _speech_session is None or _speech_session.closed:
+        timeout = aiohttp.ClientTimeout(
+            total=120,
+            connect=30,
+            sock_read=60
+        )
+        connector = aiohttp.TCPConnector(
+            limit=10,
+            limit_per_host=5,
+            ttl_dns_cache=300,
+            force_close=False,
+            enable_cleanup_closed=True
+        )
+        _speech_session = aiohttp.ClientSession(
+            timeout=timeout,
+            connector=connector,
+            raise_for_status=False
+        )
+        logger.info("SpeechKit session created")
+    return _speech_session
+
+
+async def close_speech_session():
+    global _speech_session
+    if _speech_session and not _speech_session.closed:
+        await _speech_session.close()
+        _speech_session = None
+        logger.info("SpeechKit session closed")
 
 
 async def transcribe(audio_path: Path) -> str | None:
@@ -40,35 +73,32 @@ async def transcribe(audio_path: Path) -> str | None:
             "sampleRateHertz": 16000,
         }
 
-        timeout = aiohttp.ClientTimeout(total=60, connect=15, sock_read=30)
+        session = await get_speech_session()
 
         last_error = None
         for attempt in range(1, MAX_RETRIES + 1):
             try:
-                resolver = ThreadedResolver()
-                connector = aiohttp.TCPConnector(resolver=resolver, force_close=True)
-                async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
-                    logger.info(f"SpeechKit request attempt {attempt}/{MAX_RETRIES}")
-                    async with session.post(
-                        SPEECHKIT_URL,
-                        headers=headers,
-                        params=params,
-                        data=audio_data,
-                    ) as response:
-                        if response.status != 200:
-                            error_text = await response.text()
-                            logger.error(f"SpeechKit error: {response.status} - {error_text}")
-                            return None
+                logger.info(f"SpeechKit request attempt {attempt}/{MAX_RETRIES}")
+                async with session.post(
+                    SPEECHKIT_URL,
+                    headers=headers,
+                    params=params,
+                    data=audio_data,
+                ) as response:
+                    if response.status != 200:
+                        error_text = await response.text()
+                        logger.error(f"SpeechKit error: {response.status} - {error_text}")
+                        return None
 
-                        result = await response.json()
-                        text = result.get("result", "").strip()
-                        logger.info(f"SpeechKit transcribed: {text[:100]}...")
-                        return text if text else None
+                    result = await response.json()
+                    text = result.get("result", "").strip()
+                    logger.info(f"SpeechKit transcribed: {text[:100]}...")
+                    return text if text else None
             except (aiohttp.ClientError, asyncio.TimeoutError) as e:
                 last_error = e
                 logger.warning(f"SpeechKit attempt {attempt} failed: {e}")
                 if attempt < MAX_RETRIES:
-                    await asyncio.sleep(1)
+                    await asyncio.sleep(2 ** attempt)
 
         logger.error(f"SpeechKit failed after {MAX_RETRIES} attempts: {last_error}")
         return None

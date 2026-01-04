@@ -2,7 +2,6 @@ import logging
 import json
 import asyncio
 import aiohttp
-from aiohttp.resolver import ThreadedResolver
 from typing import Optional
 
 from src.config import YANDEX_GPT_API_KEY, YANDEX_GPT_FOLDER_ID
@@ -12,6 +11,40 @@ logger = logging.getLogger(__name__)
 
 YANDEX_GPT_URL = "https://llm.api.cloud.yandex.net/foundationModels/v1/completion"
 MAX_RETRIES = 3
+
+_gpt_session: aiohttp.ClientSession | None = None
+
+
+async def get_gpt_session() -> aiohttp.ClientSession:
+    global _gpt_session
+    if _gpt_session is None or _gpt_session.closed:
+        timeout = aiohttp.ClientTimeout(
+            total=120,
+            connect=30,
+            sock_read=60
+        )
+        connector = aiohttp.TCPConnector(
+            limit=10,
+            limit_per_host=5,
+            ttl_dns_cache=300,
+            force_close=False,
+            enable_cleanup_closed=True
+        )
+        _gpt_session = aiohttp.ClientSession(
+            timeout=timeout,
+            connector=connector,
+            raise_for_status=False
+        )
+        logger.info("YandexGPT session created")
+    return _gpt_session
+
+
+async def close_gpt_session():
+    global _gpt_session
+    if _gpt_session and not _gpt_session.closed:
+        await _gpt_session.close()
+        _gpt_session = None
+        logger.info("YandexGPT session closed")
 
 
 async def parse_transactions(text: str) -> list[dict] | None:
@@ -174,27 +207,24 @@ async def call_yandex_gpt(prompt: str, temperature: float = 0.3) -> str:
         ],
     }
 
-    timeout = aiohttp.ClientTimeout(total=60, connect=15, sock_read=30)
+    session = await get_gpt_session()
 
     last_error = None
     for attempt in range(1, MAX_RETRIES + 1):
         try:
-            resolver = ThreadedResolver()
-            connector = aiohttp.TCPConnector(resolver=resolver, force_close=True)
-            async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
-                logger.info(f"YandexGPT request attempt {attempt}/{MAX_RETRIES}")
-                async with session.post(YANDEX_GPT_URL, headers=headers, json=body) as response:
-                    if response.status != 200:
-                        error_text = await response.text()
-                        raise RuntimeError(f"YandexGPT API error: {response.status} - {error_text}")
+            logger.info(f"YandexGPT request attempt {attempt}/{MAX_RETRIES}")
+            async with session.post(YANDEX_GPT_URL, headers=headers, json=body) as response:
+                if response.status != 200:
+                    error_text = await response.text()
+                    raise RuntimeError(f"YandexGPT API error: {response.status} - {error_text}")
 
-                    data = await response.json()
-                    return data["result"]["alternatives"][0]["message"]["text"]
+                data = await response.json()
+                return data["result"]["alternatives"][0]["message"]["text"]
         except (aiohttp.ClientError, asyncio.TimeoutError) as e:
             last_error = e
             logger.warning(f"YandexGPT attempt {attempt} failed: {e}")
             if attempt < MAX_RETRIES:
-                await asyncio.sleep(1)
+                await asyncio.sleep(2 ** attempt)
 
     raise RuntimeError(f"YandexGPT failed after {MAX_RETRIES} attempts: {last_error}")
 

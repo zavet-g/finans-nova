@@ -4,7 +4,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters
+from telegram import Update
+from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
+from telegram.error import TelegramError, TimedOut, NetworkError
 
 from src.config import TELEGRAM_BOT_TOKEN, ALLOWED_USER_IDS
 from src.bot.handlers.menu import start_command
@@ -29,6 +31,26 @@ logger = logging.getLogger(__name__)
 _application = None
 
 
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    logger.error(f"Exception while handling an update: {context.error}", exc_info=context.error)
+
+    if isinstance(context.error, TimedOut):
+        logger.warning("Telegram API timeout, continuing...")
+        return
+
+    if isinstance(context.error, NetworkError):
+        logger.warning(f"Network error: {context.error}, continuing...")
+        return
+
+    if isinstance(update, Update) and update.effective_message:
+        try:
+            await update.effective_message.reply_text(
+                "Произошла ошибка при обработке запроса. Попробуй ещё раз."
+            )
+        except Exception as e:
+            logger.error(f"Failed to send error message: {e}")
+
+
 async def send_report_to_users(report: str):
     """Отправляет отчёт всем разрешённым пользователям."""
     if not _application or not ALLOWED_USER_IDS:
@@ -42,6 +64,34 @@ async def send_report_to_users(report: str):
             logger.error(f"Failed to send report to {user_id}: {e}")
 
 
+async def post_init(app: Application) -> None:
+    logger.info("Initializing bot resources...")
+    try:
+        from src.services.sheets_async import async_init_spreadsheet
+        await async_init_spreadsheet()
+        logger.info("Spreadsheet structure initialized")
+    except Exception as e:
+        logger.warning(f"Could not initialize spreadsheet: {e}")
+
+    logger.info("Bot initialized, ready to serve")
+
+
+async def post_shutdown(app: Application) -> None:
+    logger.info("Cleaning up resources...")
+    try:
+        from src.services.speech import close_speech_session
+        from src.services.ai_analyzer import close_gpt_session
+        from src.services.sheets_async import shutdown_executor
+
+        await close_speech_session()
+        await close_gpt_session()
+        shutdown_executor()
+
+        logger.info("All resources cleaned up")
+    except Exception as e:
+        logger.error(f"Error during cleanup: {e}")
+
+
 def main():
     """Точка входа в приложение."""
     global _application
@@ -50,14 +100,20 @@ def main():
         logger.error("TELEGRAM_BOT_TOKEN not set in .env")
         sys.exit(1)
 
-    try:
-        from src.services.sheets import init_spreadsheet
-        init_spreadsheet()
-        logger.info("Spreadsheet structure initialized")
-    except Exception as e:
-        logger.warning(f"Could not initialize spreadsheet: {e}")
+    _application = (
+        Application.builder()
+        .token(TELEGRAM_BOT_TOKEN)
+        .read_timeout(30)
+        .write_timeout(30)
+        .connect_timeout(30)
+        .pool_timeout(5)
+        .get_updates_read_timeout(60)
+        .post_init(post_init)
+        .post_shutdown(post_shutdown)
+        .build()
+    )
 
-    _application = Application.builder().token(TELEGRAM_BOT_TOKEN).build()
+    _application.add_error_handler(error_handler)
 
     _application.add_handler(CommandHandler("start", start_command))
 
