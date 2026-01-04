@@ -6,7 +6,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from telegram import Update
 from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
-from telegram.error import TelegramError, TimedOut, NetworkError
+from telegram.error import TelegramError, TimedOut, NetworkError, BadRequest
 
 from src.config import TELEGRAM_BOT_TOKEN, ALLOWED_USER_IDS
 from src.bot.handlers.menu import start_command
@@ -45,6 +45,17 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
 
     if isinstance(context.error, NetworkError):
         logger.warning(f"Network error: {context.error}, continuing...")
+        return
+
+    if isinstance(context.error, BadRequest):
+        error_msg = str(context.error).lower()
+        if "query is too old" in error_msg or "query id is invalid" in error_msg:
+            logger.debug("Old callback query, ignoring...")
+            return
+        if "no text in the message" in error_msg or "message can't be edited" in error_msg:
+            logger.debug("Cannot edit message, handled by safe_edit_message")
+            return
+        logger.warning(f"BadRequest: {context.error}, continuing...")
         return
 
     if isinstance(update, Update) and update.effective_message:

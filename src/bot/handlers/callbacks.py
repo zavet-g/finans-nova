@@ -20,6 +20,16 @@ from src.models.category import TransactionType, get_category_by_code
 logger = logging.getLogger(__name__)
 
 
+async def safe_answer_callback(query):
+    try:
+        await query.answer()
+    except BadRequest as e:
+        if "query is too old" in str(e).lower():
+            logger.debug("Callback query too old, ignoring")
+        else:
+            raise
+
+
 async def safe_edit_message(query, text: str, reply_markup=None, max_retries: int = 2):
     for attempt in range(max_retries):
         try:
@@ -31,9 +41,13 @@ async def safe_edit_message(query, text: str, reply_markup=None, max_retries: in
             logger.warning("Edit message timeout, sending new message instead")
             return await query.message.reply_text(text, reply_markup=reply_markup)
         except BadRequest as e:
-            if "message is not modified" in str(e).lower():
+            error_msg = str(e).lower()
+            if "message is not modified" in error_msg:
                 logger.debug("Message not modified, skipping edit")
                 return None
+            if "no text in the message" in error_msg or "message can't be edited" in error_msg:
+                logger.debug("Cannot edit message, sending new one")
+                return await query.message.reply_text(text, reply_markup=reply_markup)
             raise
         except Exception as e:
             logger.error(f"Failed to edit message: {e}")
@@ -43,7 +57,7 @@ async def safe_edit_message(query, text: str, reply_markup=None, max_retries: in
 async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик callback-ов главного меню."""
     query = update.callback_query
-    await query.answer()
+    await safe_answer_callback(query)
 
     action = query.data.split(":")[1]
 
@@ -66,6 +80,8 @@ async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 async def show_transactions(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Показывает последние транзакции."""
     query = update.callback_query
+
+    await safe_edit_message(query, "Загружаю транзакции...")
 
     try:
         from src.services.sheets_async import async_get_transactions
@@ -91,10 +107,7 @@ async def show_transactions(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         )
         has_more = False
 
-    try:
-        await query.edit_message_text(text, reply_markup=transactions_list_keyboard(has_more=has_more))
-    except Exception:
-        await query.message.reply_text(text, reply_markup=transactions_list_keyboard(has_more=has_more))
+    await safe_edit_message(query, text, reply_markup=transactions_list_keyboard(has_more=has_more))
 
 
 async def show_analytics_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -116,13 +129,7 @@ async def show_charts(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     """Показывает графики расходов."""
     query = update.callback_query
 
-    if query.message.text:
-        try:
-            await query.edit_message_text("📈 Генерирую графики...", reply_markup=None)
-        except Exception:
-            await query.message.reply_text("📈 Генерирую графики...")
-    else:
-        await query.message.reply_text("📈 Генерирую графики...")
+    await safe_edit_message(query, "📈 Генерирую графики...")
 
     try:
         from src.services.sheets_async import async_get_month_summary
@@ -170,10 +177,7 @@ async def show_backup_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -
         "Хранится: последние 4 бэкапа (1 месяц)"
     )
 
-    try:
-        await query.edit_message_text(text, reply_markup=backup_keyboard())
-    except Exception:
-        await query.message.reply_text(text, reply_markup=backup_keyboard())
+    await safe_edit_message(query, text, reply_markup=backup_keyboard())
 
 
 async def open_sheets(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -187,16 +191,13 @@ async def open_sheets(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     else:
         text = "Google Sheets не настроен. Добавь GOOGLE_SHEETS_SPREADSHEET_ID в .env"
 
-    try:
-        await query.edit_message_text(text, reply_markup=main_menu_keyboard())
-    except Exception:
-        await query.message.reply_text(text, reply_markup=main_menu_keyboard())
+    await safe_edit_message(query, text, reply_markup=main_menu_keyboard())
 
 
 async def period_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик выбора периода аналитики."""
     query = update.callback_query
-    await query.answer()
+    await safe_answer_callback(query)
 
     action = query.data.split(":")[1]
 
@@ -205,10 +206,10 @@ async def period_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             "Отправь голосовое или текстовое сообщение "
             "с информацией о расходе/доходе."
         )
-        await query.edit_message_text(welcome_text, reply_markup=main_menu_keyboard())
+        await safe_edit_message(query, welcome_text, reply_markup=main_menu_keyboard())
         return
 
-    await query.edit_message_text("📊 Анализирую данные...", reply_markup=None)
+    await safe_edit_message(query, "📊 Анализирую данные...")
 
     try:
         now = datetime.now()
@@ -237,8 +238,12 @@ async def period_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
         from src.services.sheets_async import async_get_period_summary, async_get_enriched_analytics
         from src.services.ai_analyzer import generate_period_report
+        import asyncio
 
-        summary = await async_get_period_summary(start_date, end_date)
+        summary, enriched_data = await asyncio.gather(
+            async_get_period_summary(start_date, end_date),
+            async_get_enriched_analytics(start_date, end_date, prev_start, prev_end)
+        )
 
         if summary.get("expenses", 0) == 0 and summary.get("income", 0) == 0:
             await query.message.reply_text(
@@ -247,8 +252,6 @@ async def period_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
                 reply_markup=main_menu_keyboard()
             )
             return
-
-        enriched_data = await async_get_enriched_analytics(start_date, end_date, prev_start, prev_end)
 
         report = await generate_period_report(
             summary=summary,
@@ -273,7 +276,7 @@ async def period_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 async def transactions_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик callback-ов списка транзакций."""
     query = update.callback_query
-    await query.answer()
+    await safe_answer_callback(query)
 
     action = query.data.split(":")[1]
 
@@ -282,7 +285,7 @@ async def transactions_callback(update: Update, context: ContextTypes.DEFAULT_TY
             "Отправь голосовое или текстовое сообщение "
             "с информацией о расходе/доходе."
         )
-        await query.edit_message_text(welcome_text, reply_markup=main_menu_keyboard())
+        await safe_edit_message(query, welcome_text, reply_markup=main_menu_keyboard())
     elif action == "more":
         await show_transactions(update, context)
 
@@ -290,7 +293,7 @@ async def transactions_callback(update: Update, context: ContextTypes.DEFAULT_TY
 async def backup_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик callback-ов бэкапа."""
     query = update.callback_query
-    await query.answer()
+    await safe_answer_callback(query)
 
     action = query.data.split(":")[1]
 
@@ -299,13 +302,10 @@ async def backup_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             "Отправь голосовое или текстовое сообщение "
             "с информацией о расходе/доходе."
         )
-        await query.edit_message_text(welcome_text, reply_markup=main_menu_keyboard())
+        await safe_edit_message(query, welcome_text, reply_markup=main_menu_keyboard())
 
     elif action == "csv":
-        try:
-            await query.edit_message_text("📥 Экспортирую данные...", reply_markup=None)
-        except Exception:
-            pass
+        await safe_edit_message(query, "📥 Экспортирую данные...")
 
         try:
             from src.services.sheets_async import async_export_to_csv
@@ -332,10 +332,7 @@ async def backup_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             )
 
     elif action == "now":
-        try:
-            await query.edit_message_text("💾 Создаю бэкап...", reply_markup=None)
-        except Exception:
-            pass
+        await safe_edit_message(query, "💾 Создаю бэкап...")
 
         try:
             from src.services.sheets_async import async_create_backup
@@ -356,7 +353,7 @@ async def backup_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 async def transaction_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик callback-ов подтверждения транзакции."""
     query = update.callback_query
-    await query.answer()
+    await safe_answer_callback(query)
 
     action = query.data.split(":")[1]
     pending_tx = context.user_data.get("pending_transaction")
@@ -423,7 +420,7 @@ async def transaction_callback(update: Update, context: ContextTypes.DEFAULT_TYP
 async def edit_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик callback-ов редактирования транзакции."""
     query = update.callback_query
-    await query.answer()
+    await safe_answer_callback(query)
 
     action = query.data.split(":")[1]
     pending_tx = context.user_data.get("pending_transaction")
@@ -466,7 +463,7 @@ async def edit_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
 async def category_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик выбора категории."""
     query = update.callback_query
-    await query.answer()
+    await safe_answer_callback(query)
 
     action = query.data.split(":")[1]
     pending_tx = context.user_data.get("pending_transaction")
@@ -510,7 +507,7 @@ async def show_health(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
 async def health_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
-    await query.answer()
+    await safe_answer_callback(query)
 
     action = query.data.split(":")[1]
 
