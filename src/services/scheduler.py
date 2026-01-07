@@ -1,4 +1,5 @@
 import logging
+import asyncio
 from datetime import datetime
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
@@ -35,8 +36,12 @@ async def generate_and_send_monthly_report():
     prev_year = year if month > 1 else year - 1
 
     try:
-        summary = get_month_summary(year, month)
-        previous_summary = get_month_summary(prev_year, prev_month)
+        loop = asyncio.get_event_loop()
+
+        summary, previous_summary = await asyncio.gather(
+            loop.run_in_executor(None, get_month_summary, year, month),
+            loop.run_in_executor(None, get_month_summary, prev_year, prev_month)
+        )
 
         start_date = datetime(year, month, 1)
         if month == 12:
@@ -47,7 +52,9 @@ async def generate_and_send_monthly_report():
         prev_start = datetime(prev_year, prev_month, 1)
         prev_end = start_date
 
-        enriched_data = get_enriched_analytics(start_date, end_date, prev_start, prev_end)
+        enriched_data = await loop.run_in_executor(
+            None, get_enriched_analytics, start_date, end_date, prev_start, prev_end
+        )
 
         report = await generate_monthly_report(
             summary=summary,
@@ -68,7 +75,8 @@ async def generate_and_send_monthly_report():
 async def create_weekly_backup():
     """Создаёт еженедельный бэкап."""
     try:
-        backup_name = create_backup()
+        loop = asyncio.get_event_loop()
+        backup_name = await loop.run_in_executor(None, create_backup)
         logger.info(f"Weekly backup created: {backup_name}")
     except Exception as e:
         logger.error(f"Failed to create weekly backup: {e}")

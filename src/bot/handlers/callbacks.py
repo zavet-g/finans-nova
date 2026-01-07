@@ -113,16 +113,14 @@ async def show_transactions(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 async def show_analytics_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Показывает меню выбора периода аналитики."""
     query = update.callback_query
+    await safe_answer_callback(query)
 
     text = (
         "АНАЛИТИКА\n\n"
         "Выбери период для AI-анализа расходов:"
     )
 
-    try:
-        await query.edit_message_text(text, reply_markup=analytics_period_keyboard())
-    except Exception:
-        await query.message.reply_text(text, reply_markup=analytics_period_keyboard())
+    await safe_edit_message(query, text, reply_markup=analytics_period_keyboard())
 
 
 async def show_charts(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -132,6 +130,7 @@ async def show_charts(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     await safe_edit_message(query, "📈 Генерирую графики...")
 
     try:
+        import asyncio
         from src.services.sheets_async import async_get_month_summary
         from src.services.charts import generate_monthly_summary_chart
         from src.utils.formatters import month_name
@@ -148,7 +147,10 @@ async def show_charts(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
             )
             return
 
-        chart = generate_monthly_summary_chart(summary, month_name(now.month), now.year)
+        loop = asyncio.get_event_loop()
+        chart = await loop.run_in_executor(
+            None, generate_monthly_summary_chart, summary, month_name(now.month), now.year
+        )
         balance = summary.get("balance", 0)
 
         await query.message.reply_photo(
@@ -170,6 +172,7 @@ async def show_charts(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 async def show_backup_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Показывает меню бэкапов."""
     query = update.callback_query
+    await safe_answer_callback(query)
 
     text = (
         "БЭКАП И ЭКСПОРТ\n\n"
@@ -183,6 +186,7 @@ async def show_backup_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -
 async def open_sheets(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Отправляет ссылку на Google Sheets."""
     query = update.callback_query
+    await safe_answer_callback(query)
 
     from src.config import GOOGLE_SHEETS_SPREADSHEET_ID
     if GOOGLE_SHEETS_SPREADSHEET_ID:
@@ -240,9 +244,12 @@ async def period_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         from src.services.ai_analyzer import generate_period_report
         import asyncio
 
-        summary, enriched_data = await asyncio.gather(
-            async_get_period_summary(start_date, end_date),
-            async_get_enriched_analytics(start_date, end_date, prev_start, prev_end)
+        summary, enriched_data = await asyncio.wait_for(
+            asyncio.gather(
+                async_get_period_summary(start_date, end_date),
+                async_get_enriched_analytics(start_date, end_date, prev_start, prev_end)
+            ),
+            timeout=30.0
         )
 
         if summary.get("expenses", 0) == 0 and summary.get("income", 0) == 0:
@@ -265,6 +272,12 @@ async def period_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             reply_markup=main_menu_keyboard()
         )
 
+    except asyncio.TimeoutError:
+        logger.error("Analytics generation timeout")
+        await query.message.reply_text(
+            "📊 Время ожидания истекло. Попробуй выбрать меньший период.",
+            reply_markup=main_menu_keyboard()
+        )
     except Exception as e:
         logger.error(f"Failed to generate analytics: {e}")
         await query.message.reply_text(
@@ -358,8 +371,13 @@ async def transaction_callback(update: Update, context: ContextTypes.DEFAULT_TYP
     action = query.data.split(":")[1]
     pending_tx = context.user_data.get("pending_transaction")
 
+    if context.user_data.get("_processing_transaction"):
+        logger.debug("Transaction already being processed, ignoring duplicate click")
+        return
+
     if action == "confirm":
         if pending_tx:
+            context.user_data["_processing_transaction"] = True
             try:
                 from src.services.sheets_async import async_add_transaction
                 tx_id = await async_add_transaction(pending_tx)
@@ -367,6 +385,8 @@ async def transaction_callback(update: Update, context: ContextTypes.DEFAULT_TYP
             except Exception as e:
                 logger.error(f"Failed to save transaction: {e}")
                 text = f"✅ Транзакция записана.\n\n{pending_tx.format_for_user()}"
+            finally:
+                context.user_data.pop("_processing_transaction", None)
             context.user_data.pop("pending_transaction", None)
 
             pending_list = context.user_data.get("pending_transactions")
@@ -492,6 +512,7 @@ async def category_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) 
 
 async def show_health(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     query = update.callback_query
+    await safe_answer_callback(query)
 
     try:
         from src.services.health_check import get_health_checker

@@ -55,8 +55,8 @@ async def transcribe(audio_path: Path) -> str | None:
     try:
         pcm_path = await convert_ogg_to_pcm(audio_path)
 
-        with open(pcm_path, "rb") as f:
-            audio_data = f.read()
+        loop = asyncio.get_event_loop()
+        audio_data = await loop.run_in_executor(None, lambda: pcm_path.read_bytes())
 
         pcm_path.unlink(missing_ok=True)
 

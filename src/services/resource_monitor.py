@@ -44,9 +44,11 @@ class ResourceMonitor:
                 logger.error(f"Error in resource monitor: {e}")
 
     async def _check_resources(self):
+        loop = asyncio.get_event_loop()
         process = psutil.Process()
+
         memory_mb = process.memory_info().rss / 1024 / 1024
-        cpu_percent = process.cpu_percent(interval=1.0)
+        cpu_percent = await loop.run_in_executor(None, lambda: process.cpu_percent(interval=1.0))
 
         logger.info(f"Resource check: Memory={memory_mb:.1f}MB, CPU={cpu_percent:.1f}%")
 

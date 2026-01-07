@@ -112,7 +112,14 @@ async def process_transaction_text(update: Update, context: ContextTypes.DEFAULT
     from src.models.transaction import Transaction
     from src.services.ai_analyzer import parse_transactions
 
-    ai_results = await parse_transactions(text)
+    processing_msg = await update.message.reply_text("Анализирую через AI...")
+
+    try:
+        ai_results = await parse_transactions(text)
+        await processing_msg.delete()
+    except Exception as e:
+        await processing_msg.delete()
+        raise
 
     if ai_results:
         transactions = [

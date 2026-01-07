@@ -6,7 +6,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 logger = logging.getLogger(__name__)
 
-_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="sheets_")
+_executor = ThreadPoolExecutor(max_workers=8, thread_name_prefix="sheets_")
 
 
 def run_in_executor(func: Callable) -> Callable:
