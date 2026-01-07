@@ -379,8 +379,12 @@ async def transaction_callback(update: Update, context: ContextTypes.DEFAULT_TYP
                     context.user_data["pending_transaction"] = next_tx
                     total = len(pending_list)
                     current = index + 1
-                    text += f"\n\n───────────────\n\nТранзакция {current} из {total}:\n\n{next_tx.format_for_user()}"
-                    await safe_edit_message(query, text, reply_markup=confirm_transaction_keyboard())
+
+                    await safe_edit_message(query, text, reply_markup=None)
+                    await query.message.reply_text(
+                        f"Транзакция {current} из {total}:\n\n{next_tx.format_for_user()}",
+                        reply_markup=confirm_transaction_keyboard()
+                    )
                     return
                 else:
                     context.user_data.pop("pending_transactions", None)
@@ -408,8 +412,12 @@ async def transaction_callback(update: Update, context: ContextTypes.DEFAULT_TYP
                 context.user_data["pending_transaction"] = next_tx
                 total = len(pending_list)
                 current = index + 1
-                text = f"❌ Пропущена.\n\nТранзакция {current} из {total}:\n\n{next_tx.format_for_user()}"
-                await query.edit_message_text(text, reply_markup=confirm_transaction_keyboard())
+
+                await safe_edit_message(query, "❌ Пропущена.", reply_markup=None)
+                await query.message.reply_text(
+                    f"Транзакция {current} из {total}:\n\n{next_tx.format_for_user()}",
+                    reply_markup=confirm_transaction_keyboard()
+                )
                 return
             else:
                 context.user_data.pop("pending_transactions", None)
