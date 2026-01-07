@@ -6,14 +6,14 @@ from telegram.ext import ContextTypes
 from src.config import TEMP_AUDIO_DIR
 from src.bot.handlers.menu import is_user_allowed
 from src.bot.handlers.text import process_transaction_text
+from src.utils.metrics_decorator import track_request
 
 logger = logging.getLogger(__name__)
 
 
+@track_request("voice", "yandex_stt")
 async def voice_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Обработчик голосовых сообщений."""
     from src.utils.rate_limiter import check_rate_limit
-    from src.services.health_check import get_health_checker
 
     user = update.effective_user
     if not is_user_allowed(user.id):
@@ -23,7 +23,6 @@ async def voice_message_handler(update: Update, context: ContextTypes.DEFAULT_TY
         await update.message.reply_text(
             "Слишком много запросов. Подожди немного и попробуй снова."
         )
-        get_health_checker().record_request(success=False)
         return
 
     voice = update.message.voice
@@ -32,32 +31,23 @@ async def voice_message_handler(update: Update, context: ContextTypes.DEFAULT_TY
 
     processing_msg = await update.message.reply_text("Распознаю голосовое сообщение...")
 
-    try:
-        file = await context.bot.get_file(voice.file_id)
-        ogg_path = TEMP_AUDIO_DIR / f"{voice.file_unique_id}.ogg"
-        await file.download_to_drive(ogg_path)
+    file = await context.bot.get_file(voice.file_id)
+    ogg_path = TEMP_AUDIO_DIR / f"{voice.file_unique_id}.ogg"
+    await file.download_to_drive(ogg_path)
 
-        text = await transcribe_audio(ogg_path)
+    text = await transcribe_audio(ogg_path)
 
-        ogg_path.unlink(missing_ok=True)
+    ogg_path.unlink(missing_ok=True)
 
-        if not text:
-            await processing_msg.edit_text(
-                "Не удалось распознать речь. Попробуй ещё раз или напиши текстом."
-            )
-            return
-
-        await processing_msg.edit_text(f"Распознано: «{text}»")
-
-        await process_transaction_text(update, context, text)
-        get_health_checker().record_request(success=True)
-
-    except Exception as e:
-        logger.error(f"Error processing voice message: {e}")
-        get_health_checker().record_request(success=False)
+    if not text:
         await processing_msg.edit_text(
-            "Произошла ошибка при обработке голосового сообщения. Попробуй позже."
+            "Не удалось распознать речь. Попробуй ещё раз или напиши текстом."
         )
+        return
+
+    await processing_msg.edit_text(f"Распознано: «{text}»")
+
+    await process_transaction_text(update, context, text)
 
 
 async def transcribe_audio(audio_path: Path) -> str | None:

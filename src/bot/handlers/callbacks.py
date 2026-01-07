@@ -515,18 +515,28 @@ async def show_health(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     await safe_answer_callback(query)
 
     try:
-        from src.services.health_check import get_health_checker
-        from src.utils.formatters_health import format_health_report
+        from src.services.metrics import get_metrics
+        from src.services.health_monitor import get_health_monitor
+        from src.utils.health_formatter import format_health_report
 
-        health_checker = get_health_checker()
-        health_status = health_checker.get_health_status()
-        external_services = await health_checker.check_external_services()
+        metrics = get_metrics()
+        health_monitor = get_health_monitor()
 
-        report = format_health_report(health_status, external_services)
+        metrics_summary = metrics.get_metrics_summary()
+        services_status = metrics.get_services_status()
+        request_types = metrics.get_request_types_stats()
+        health_checks = await health_monitor.check_all_services()
+
+        report = format_health_report(
+            metrics_summary,
+            services_status,
+            request_types,
+            health_checks
+        )
 
         await safe_edit_message(query, report, reply_markup=health_keyboard())
     except Exception as e:
-        logger.error(f"Failed to load health status: {e}")
+        logger.error(f"Failed to load health status: {e}", exc_info=True)
         error_text = (
             "🔧 СОСТОЯНИЕ БОТА\n\n"
             f"Не удалось загрузить информацию.\nОшибка: {str(e)[:100]}"

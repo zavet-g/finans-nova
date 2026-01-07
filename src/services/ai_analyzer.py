@@ -6,6 +6,7 @@ from typing import Optional
 
 from src.config import YANDEX_GPT_API_KEY, YANDEX_GPT_FOLDER_ID
 from src.models.category import TransactionType, EXPENSE_CATEGORIES, INCOME_CATEGORY
+from src.utils.metrics_decorator import track_service_call
 
 logger = logging.getLogger(__name__)
 
@@ -47,6 +48,7 @@ async def close_gpt_session():
         logger.info("YandexGPT session closed")
 
 
+@track_service_call("yandex_gpt")
 async def parse_transactions(text: str) -> list[dict] | None:
     """Парсит одну или несколько транзакций из текста с помощью YandexGPT."""
     if not YANDEX_GPT_API_KEY or not YANDEX_GPT_FOLDER_ID:
@@ -133,6 +135,7 @@ async def categorize_transaction(description: str, amount: float) -> dict:
         return fallback_categorize(description)
 
 
+@track_service_call("yandex_gpt")
 async def generate_monthly_report(
     summary: dict,
     previous_summary: dict,
@@ -265,6 +268,7 @@ def format_categories_for_prompt(by_category: dict) -> str:
     return "\n".join(lines) if lines else "- Нет данных"
 
 
+@track_service_call("yandex_gpt")
 async def generate_period_report(
     summary: dict,
     transactions_markdown: str,

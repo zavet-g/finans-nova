@@ -5,6 +5,7 @@ from pathlib import Path
 
 from src.config import YANDEX_GPT_API_KEY, YANDEX_GPT_FOLDER_ID
 from src.utils.audio import convert_ogg_to_pcm
+from src.utils.metrics_decorator import track_service_call
 
 logger = logging.getLogger(__name__)
 
@@ -46,6 +47,7 @@ async def close_speech_session():
         logger.info("SpeechKit session closed")
 
 
+@track_service_call("yandex_stt")
 async def transcribe(audio_path: Path) -> str | None:
     """Транскрибирует аудио через Yandex SpeechKit."""
     if not YANDEX_GPT_API_KEY or not YANDEX_GPT_FOLDER_ID:

@@ -12,7 +12,6 @@ from src.config import TELEGRAM_BOT_TOKEN, ALLOWED_USER_IDS
 from src.bot.handlers.menu import start_command
 from src.bot.handlers.text import text_message_handler
 from src.bot.handlers.voice import voice_message_handler
-from src.bot.handlers.admin import health_command, stats_command
 from src.bot.handlers.callbacks import (
     menu_callback,
     period_callback,
@@ -25,8 +24,9 @@ from src.bot.handlers.callbacks import (
 )
 
 from src.utils.logging_config import setup_logging
-from src.services.health_check import get_health_checker
+from src.services.metrics import get_metrics
 from src.services.resource_monitor import get_resource_monitor
+from src.services.throttle import get_throttle_manager
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -36,8 +36,6 @@ _application = None
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
     logger.error(f"Exception while handling an update: {context.error}", exc_info=context.error)
-
-    get_health_checker().record_request(success=False)
 
     if isinstance(context.error, TimedOut):
         logger.warning("Telegram API timeout, continuing...")
@@ -83,6 +81,10 @@ async def send_report_to_users(report: str):
 async def post_init(app: Application) -> None:
     logger.info("Initializing bot resources...")
 
+    metrics = get_metrics()
+    await metrics.start()
+    logger.info("Metrics collector started")
+
     resource_monitor = get_resource_monitor()
     await resource_monitor.start_monitoring()
     logger.info("Resource monitoring started")
@@ -94,13 +96,16 @@ async def post_init(app: Application) -> None:
     except Exception as e:
         logger.warning(f"Could not initialize spreadsheet: {e}")
 
-    health_status = get_health_checker().get_health_status()
-    logger.info(f"Bot initialized, ready to serve - Status: {health_status['status']}")
+    metrics_summary = metrics.get_metrics_summary()
+    logger.info(f"Bot initialized, ready to serve - Status: {metrics_summary['status']}")
 
 
 async def post_shutdown(app: Application) -> None:
     logger.info("Cleaning up resources...")
     try:
+        metrics = get_metrics()
+        await metrics.stop()
+
         resource_monitor = get_resource_monitor()
         await resource_monitor.stop_monitoring()
 
@@ -112,8 +117,8 @@ async def post_shutdown(app: Application) -> None:
         await close_gpt_session()
         shutdown_executor()
 
-        health_status = get_health_checker().get_health_status()
-        logger.info(f"Shutdown complete - Final stats: {health_status['requests']}")
+        metrics_summary = metrics.get_metrics_summary()
+        logger.info(f"Shutdown complete - Final stats: {metrics_summary['requests']}")
     except Exception as e:
         logger.error(f"Error during cleanup: {e}")
 
@@ -142,8 +147,6 @@ def main():
     _application.add_error_handler(error_handler)
 
     _application.add_handler(CommandHandler("start", start_command))
-    _application.add_handler(CommandHandler("health", health_command))
-    _application.add_handler(CommandHandler("stats", stats_command))
 
     _application.add_handler(CallbackQueryHandler(menu_callback, pattern=r"^menu:"))
     _application.add_handler(CallbackQueryHandler(period_callback, pattern=r"^period:"))

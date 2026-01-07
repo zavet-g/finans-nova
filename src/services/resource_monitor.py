@@ -52,16 +52,24 @@ class ResourceMonitor:
 
         logger.info(f"Resource check: Memory={memory_mb:.1f}MB, CPU={cpu_percent:.1f}%")
 
+        should_degrade = False
+
         if memory_mb > self.memory_threshold_mb:
             logger.warning(f"High memory usage detected: {memory_mb:.1f}MB > {self.memory_threshold_mb}MB")
-            self.is_degraded = True
+            should_degrade = True
             await self._trigger_gc()
         elif cpu_percent > self.cpu_threshold_percent:
             logger.warning(f"High CPU usage detected: {cpu_percent:.1f}% > {self.cpu_threshold_percent}%")
+            should_degrade = True
+
+        if should_degrade and not self.is_degraded:
+            from src.services.throttle import get_throttle_manager
+            get_throttle_manager().enable_degraded_mode()
             self.is_degraded = True
-        else:
-            if self.is_degraded:
-                logger.info("Resources back to normal, exiting degraded mode")
+        elif not should_degrade and self.is_degraded:
+            from src.services.throttle import get_throttle_manager
+            get_throttle_manager().disable_degraded_mode()
+            logger.info("Resources back to normal, exiting degraded mode")
             self.is_degraded = False
 
     async def _trigger_gc(self):

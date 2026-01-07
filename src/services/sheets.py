@@ -1,4 +1,5 @@
 import logging
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -9,6 +10,7 @@ from google.oauth2.service_account import Credentials
 from src.config import GOOGLE_SHEETS_CREDENTIALS_FILE, GOOGLE_SHEETS_SPREADSHEET_ID, BASE_DIR
 from src.models.transaction import Transaction
 from src.models.category import TransactionType
+from src.services.metrics import get_metrics
 
 logger = logging.getLogger(__name__)
 
@@ -210,9 +212,13 @@ def _get_borders():
 
 
 def add_transaction(transaction: Transaction) -> int:
-    """Добавляет транзакцию в лист Транзакции."""
-    spreadsheet = get_spreadsheet()
-    worksheet = spreadsheet.worksheet("Транзакции")
+    start_time = time.time()
+    success = False
+    error_msg = None
+
+    try:
+        spreadsheet = get_spreadsheet()
+        worksheet = spreadsheet.worksheet("Транзакции")
 
     all_values = worksheet.get_all_values()
     row_num = len(all_values) + 1
@@ -228,22 +234,31 @@ def add_transaction(transaction: Transaction) -> int:
     else:
         balance_formula = f'=IF(F{row_num}=""; ""; G{row_num-1} + IF(C{row_num}="доход"; F{row_num}; -F{row_num}))'
 
-    row = [
-        date_str,
-        time_str,
-        tx_type,
-        transaction.category,
-        transaction.description,
-        transaction.amount,
-        balance_formula,
-    ]
+        row = [
+            date_str,
+            time_str,
+            tx_type,
+            transaction.category,
+            transaction.description,
+            transaction.amount,
+            balance_formula,
+        ]
 
-    worksheet.append_row(row, value_input_option="USER_ENTERED")
+        worksheet.append_row(row, value_input_option="USER_ENTERED")
 
-    transaction.tx_id = row_num - 1
+        transaction.tx_id = row_num - 1
 
-    logger.info(f"Транзакция #{transaction.tx_id}: {transaction.description}")
-    return transaction.tx_id
+        logger.info(f"Транзакция #{transaction.tx_id}: {transaction.description}")
+        success = True
+        return transaction.tx_id
+
+    except Exception as e:
+        error_msg = str(e)
+        raise
+
+    finally:
+        duration = time.time() - start_time
+        get_metrics().record_service_call("google_sheets", success, duration, error_msg)
 
 
 def get_last_balance() -> float:

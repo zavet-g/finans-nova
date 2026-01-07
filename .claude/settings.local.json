@@ -24,7 +24,9 @@
       "Bash(docker ps:*)",
       "Bash(./venv/bin/python:*)",
       "Bash(python -m pytest tests/ -v --tb=short)",
-      "Bash(python -m py_compile:*)"
+      "Bash(python -m py_compile:*)",
+      "Bash(./venv/bin/pip install:*)",
+      "Bash(cat:*)"
     ],
     "deny": [],
     "ask": []

@@ -5,6 +5,7 @@ from telegram.ext import ContextTypes
 
 from src.bot.keyboards import confirm_transaction_keyboard, edit_transaction_keyboard
 from src.bot.handlers.menu import is_user_allowed
+from src.utils.metrics_decorator import track_request
 
 logger = logging.getLogger(__name__)
 
@@ -70,8 +71,8 @@ def parse_amount_from_part(text: str) -> float | None:
     return None
 
 
+@track_request("text", "yandex_gpt")
 async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Обработчик текстовых сообщений."""
     user = update.effective_user
     if not is_user_allowed(user.id):
         return
