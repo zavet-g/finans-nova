@@ -26,7 +26,8 @@
       "Bash(python -m pytest tests/ -v --tb=short)",
       "Bash(python -m py_compile:*)",
       "Bash(./venv/bin/pip install:*)",
-      "Bash(cat:*)"
+      "Bash(cat:*)",
+      "Bash(make logs:*)"
     ],
     "deny": [],
     "ask": []

@@ -35,7 +35,7 @@ restart:
 
 logs:
 	@echo "$(BLUE)▶$(RESET) Логи контейнеров (Ctrl+C для выхода)..."
-	@docker compose logs -f
+	@docker compose logs -f --no-log-prefix
 
 build:
 	@echo "$(BLUE)▶$(RESET) Сборка образов..."
