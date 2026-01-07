@@ -20,6 +20,34 @@ from src.models.category import TransactionType, get_category_by_code
 logger = logging.getLogger(__name__)
 
 
+async def safe_reply(message, text: str = None, photo=None, document=None, filename=None, caption=None, reply_markup=None):
+    try:
+        if photo:
+            return await message.reply_photo(photo=photo, caption=caption, reply_markup=reply_markup)
+        elif document:
+            return await message.reply_document(document=document, filename=filename, caption=caption, reply_markup=reply_markup)
+        elif text:
+            return await message.reply_text(text, reply_markup=reply_markup)
+    except TimedOut:
+        logger.warning("Reply timeout, retrying once...")
+        try:
+            if photo:
+                return await message.reply_photo(photo=photo, caption=caption, reply_markup=reply_markup)
+            elif document:
+                return await message.reply_document(document=document, filename=filename, caption=caption, reply_markup=reply_markup)
+            elif text:
+                return await message.reply_text(text, reply_markup=reply_markup)
+        except Exception as e:
+            logger.error(f"Reply retry failed: {e}")
+            return None
+    except BadRequest as e:
+        logger.warning(f"BadRequest in reply: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"Unexpected error in reply: {e}", exc_info=True)
+        return None
+
+
 async def safe_answer_callback(query):
     try:
         await query.answer()
@@ -39,7 +67,11 @@ async def safe_edit_message(query, text: str, reply_markup=None, max_retries: in
                 logger.warning(f"Edit message timeout, retry {attempt + 1}/{max_retries}")
                 continue
             logger.warning("Edit message timeout, sending new message instead")
-            return await query.message.reply_text(text, reply_markup=reply_markup)
+            try:
+                return await query.message.reply_text(text, reply_markup=reply_markup)
+            except Exception as e:
+                logger.error(f"Failed to send message after timeout: {e}")
+                return None
         except BadRequest as e:
             error_msg = str(e).lower()
             if "message is not modified" in error_msg:
@@ -47,11 +79,24 @@ async def safe_edit_message(query, text: str, reply_markup=None, max_retries: in
                 return None
             if "no text in the message" in error_msg or "message can't be edited" in error_msg:
                 logger.debug("Cannot edit message, sending new one")
-                return await query.message.reply_text(text, reply_markup=reply_markup)
-            raise
+                try:
+                    return await query.message.reply_text(text, reply_markup=reply_markup)
+                except Exception as e2:
+                    logger.error(f"Failed to send replacement message: {e2}")
+                    return None
+            if "message to edit not found" in error_msg:
+                logger.debug("Message to edit not found, ignoring")
+                return None
+            logger.warning(f"BadRequest in edit_message: {e}")
+            return None
         except Exception as e:
-            logger.error(f"Failed to edit message: {e}")
-            return await query.message.reply_text(text, reply_markup=reply_markup)
+            logger.error(f"Unexpected error editing message: {e}", exc_info=True)
+            try:
+                return await query.message.reply_text(text, reply_markup=reply_markup)
+            except Exception as e2:
+                logger.error(f"Failed to send fallback message: {e2}")
+                return None
+    return None
 
 
 async def menu_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -139,10 +184,11 @@ async def show_charts(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         summary = await async_get_month_summary(now.year, now.month)
 
         if summary.get("expenses", 0) == 0 and summary.get("income", 0) == 0:
-            await query.message.reply_text(
-                "📈 ГРАФИКИ\n\n"
-                "Пока недостаточно данных для построения графиков.\n"
-                "Добавь несколько транзакций.",
+            await safe_reply(
+                query.message,
+                text="📈 ГРАФИКИ\n\n"
+                     "Пока недостаточно данных для построения графиков.\n"
+                     "Добавь несколько транзакций.",
                 reply_markup=main_menu_keyboard()
             )
             return
@@ -153,7 +199,8 @@ async def show_charts(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         )
         balance = summary.get("balance", 0)
 
-        await query.message.reply_photo(
+        await safe_reply(
+            query.message,
             photo=chart,
             caption=f"📈 Финансовая сводка за {month_name(now.month)} {now.year}\n\n"
                     f"Баланс месяца: {balance:,.0f} руб.".replace(",", " "),
@@ -162,9 +209,10 @@ async def show_charts(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
 
     except Exception as e:
         logger.error(f"Failed to generate charts: {e}")
-        await query.message.reply_text(
-            "📈 Не удалось построить графики.\n"
-            f"Ошибка: {str(e)[:100]}",
+        await safe_reply(
+            query.message,
+            text="📈 Не удалось построить графики.\n"
+                 f"Ошибка: {str(e)[:100]}",
             reply_markup=main_menu_keyboard()
         )
 
@@ -253,9 +301,10 @@ async def period_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         )
 
         if summary.get("expenses", 0) == 0 and summary.get("income", 0) == 0:
-            await query.message.reply_text(
-                f"Анализ за {period_name}\n\n"
-                "Нет транзакций за выбранный период.",
+            await safe_reply(
+                query.message,
+                text=f"Анализ за {period_name}\n\n"
+                     "Нет транзакций за выбранный период.",
                 reply_markup=main_menu_keyboard()
             )
             return
@@ -267,21 +316,24 @@ async def period_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             enriched_data=enriched_data,
         )
 
-        await query.message.reply_text(
-            f"📊 AI-АНАЛИЗ ЗА {period_name.upper()}\n\n{report}",
+        await safe_reply(
+            query.message,
+            text=f"📊 AI-АНАЛИЗ ЗА {period_name.upper()}\n\n{report}",
             reply_markup=main_menu_keyboard()
         )
 
     except asyncio.TimeoutError:
         logger.error("Analytics generation timeout")
-        await query.message.reply_text(
-            "📊 Время ожидания истекло. Попробуй выбрать меньший период.",
+        await safe_reply(
+            query.message,
+            text="📊 Время ожидания истекло. Попробуй выбрать меньший период.",
             reply_markup=main_menu_keyboard()
         )
     except Exception as e:
         logger.error(f"Failed to generate analytics: {e}")
-        await query.message.reply_text(
-            f"📊 Не удалось выполнить анализ.\nОшибка: {str(e)[:100]}",
+        await safe_reply(
+            query.message,
+            text=f"📊 Не удалось выполнить анализ.\nОшибка: {str(e)[:100]}",
             reply_markup=main_menu_keyboard()
         )
 
@@ -328,19 +380,22 @@ async def backup_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             file = BytesIO(csv_data.encode('utf-8'))
             file.name = f"transactions_{datetime.now().strftime('%Y%m%d')}.csv"
 
-            await query.message.reply_document(
+            await safe_reply(
+                query.message,
                 document=file,
                 filename=file.name,
                 caption="📥 Экспорт транзакций в CSV"
             )
-            await query.message.reply_text(
-                "Выбери действие:",
+            await safe_reply(
+                query.message,
+                text="Выбери действие:",
                 reply_markup=backup_keyboard()
             )
         except Exception as e:
             logger.error(f"Failed to export CSV: {e}")
-            await query.message.reply_text(
-                f"📥 Не удалось экспортировать данные.\nОшибка: {str(e)[:100]}",
+            await safe_reply(
+                query.message,
+                text=f"📥 Не удалось экспортировать данные.\nОшибка: {str(e)[:100]}",
                 reply_markup=backup_keyboard()
             )
 
@@ -350,15 +405,17 @@ async def backup_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         try:
             from src.services.sheets_async import async_create_backup
             backup_name = await async_create_backup()
-            await query.message.reply_text(
-                f"💾 Бэкап создан!\n\nНазвание: {backup_name}\n\n"
-                "Копия таблицы сохранена на Google Drive.",
+            await safe_reply(
+                query.message,
+                text=f"💾 Бэкап создан!\n\nНазвание: {backup_name}\n\n"
+                     "Копия таблицы сохранена на Google Drive.",
                 reply_markup=backup_keyboard()
             )
         except Exception as e:
             logger.error(f"Failed to create backup: {e}")
-            await query.message.reply_text(
-                f"💾 Не удалось создать бэкап.\nОшибка: {str(e)[:100]}",
+            await safe_reply(
+                query.message,
+                text=f"💾 Не удалось создать бэкап.\nОшибка: {str(e)[:100]}",
                 reply_markup=backup_keyboard()
             )
 
@@ -401,8 +458,9 @@ async def transaction_callback(update: Update, context: ContextTypes.DEFAULT_TYP
                     current = index + 1
 
                     await safe_edit_message(query, text, reply_markup=None)
-                    await query.message.reply_text(
-                        f"Транзакция {current} из {total}:\n\n{next_tx.format_for_user()}",
+                    await safe_reply(
+                        query.message,
+                        text=f"Транзакция {current} из {total}:\n\n{next_tx.format_for_user()}",
                         reply_markup=confirm_transaction_keyboard()
                     )
                     return
@@ -434,8 +492,9 @@ async def transaction_callback(update: Update, context: ContextTypes.DEFAULT_TYP
                 current = index + 1
 
                 await safe_edit_message(query, "❌ Пропущена.", reply_markup=None)
-                await query.message.reply_text(
-                    f"Транзакция {current} из {total}:\n\n{next_tx.format_for_user()}",
+                await safe_reply(
+                    query.message,
+                    text=f"Транзакция {current} из {total}:\n\n{next_tx.format_for_user()}",
                     reply_markup=confirm_transaction_keyboard()
                 )
                 return

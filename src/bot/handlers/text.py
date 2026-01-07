@@ -2,12 +2,31 @@ import logging
 import re
 from telegram import Update
 from telegram.ext import ContextTypes
+from telegram.error import TimedOut, BadRequest
 
 from src.bot.keyboards import confirm_transaction_keyboard, edit_transaction_keyboard
 from src.bot.handlers.menu import is_user_allowed
 from src.utils.metrics_decorator import track_request
 
 logger = logging.getLogger(__name__)
+
+
+async def safe_reply(message, text: str, reply_markup=None):
+    try:
+        return await message.reply_text(text, reply_markup=reply_markup)
+    except TimedOut:
+        logger.warning("Reply timeout, retrying once...")
+        try:
+            return await message.reply_text(text, reply_markup=reply_markup)
+        except Exception as e:
+            logger.error(f"Reply retry failed: {e}")
+            return None
+    except BadRequest as e:
+        logger.warning(f"BadRequest in reply: {e}")
+        return None
+    except Exception as e:
+        logger.error(f"Unexpected error in reply: {e}", exc_info=True)
+        return None
 
 
 def parse_multiple_transactions(text: str) -> list[dict]:
@@ -88,18 +107,20 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
                 amount = parse_amount(text)
                 pending_tx.amount = amount
                 context.user_data.pop("editing_field", None)
-                await update.message.reply_text(
+                await safe_reply(
+                    update.message,
                     f"Сумма изменена.\n\n{pending_tx.format_for_user()}",
                     reply_markup=edit_transaction_keyboard()
                 )
             except ValueError:
-                await update.message.reply_text("Не удалось распознать сумму. Введи число:")
+                await safe_reply(update.message, "Не удалось распознать сумму. Введи число:")
             return
 
         elif editing_field == "description":
             pending_tx.description = text
             context.user_data.pop("editing_field", None)
-            await update.message.reply_text(
+            await safe_reply(
+                update.message,
                 f"Описание изменено.\n\n{pending_tx.format_for_user()}",
                 reply_markup=edit_transaction_keyboard()
             )
@@ -113,13 +134,21 @@ async def process_transaction_text(update: Update, context: ContextTypes.DEFAULT
     from src.models.transaction import Transaction
     from src.services.ai_analyzer import parse_transactions
 
-    processing_msg = await update.message.reply_text("Анализирую через AI...")
+    processing_msg = await safe_reply(update.message, "Анализирую через AI...")
+    if not processing_msg:
+        return
 
     try:
         ai_results = await parse_transactions(text)
-        await processing_msg.delete()
+        try:
+            await processing_msg.delete()
+        except Exception:
+            pass
     except Exception as e:
-        await processing_msg.delete()
+        try:
+            await processing_msg.delete()
+        except Exception:
+            pass
         raise
 
     if ai_results:
@@ -136,7 +165,8 @@ async def process_transaction_text(update: Update, context: ContextTypes.DEFAULT
         if len(transactions) == 1:
             context.user_data["pending_transaction"] = transactions[0]
             context.user_data.pop("pending_transactions", None)
-            await update.message.reply_text(
+            await safe_reply(
+                update.message,
                 f"Распознана транзакция:\n\n{transactions[0].format_for_user()}",
                 reply_markup=confirm_transaction_keyboard()
             )
@@ -152,7 +182,8 @@ async def process_transaction_text(update: Update, context: ContextTypes.DEFAULT
     if not parsed:
         amount = parse_amount_from_part(text)
         if amount is None:
-            await update.message.reply_text(
+            await safe_reply(
+                update.message,
                 "Не удалось распознать сумму. Попробуй написать иначе.\n"
                 "Например: «потратил 500 на такси»"
             )
@@ -177,7 +208,8 @@ async def process_transaction_text(update: Update, context: ContextTypes.DEFAULT
         context.user_data["pending_transaction"] = transaction
         context.user_data.pop("pending_transactions", None)
 
-        await update.message.reply_text(
+        await safe_reply(
+            update.message,
             f"Распознана транзакция:\n\n{transaction.format_for_user()}",
             reply_markup=confirm_transaction_keyboard()
         )
@@ -205,7 +237,8 @@ async def show_next_transaction(update: Update, context: ContextTypes.DEFAULT_TY
     index = context.user_data.get("current_tx_index", 0)
 
     if index >= len(transactions):
-        await update.message.reply_text(
+        await safe_reply(
+            update.message,
             "Все транзакции обработаны!",
             reply_markup=None
         )
@@ -219,7 +252,8 @@ async def show_next_transaction(update: Update, context: ContextTypes.DEFAULT_TY
     total = len(transactions)
     current = index + 1
 
-    await update.message.reply_text(
+    await safe_reply(
+        update.message,
         f"Транзакция {current} из {total}:\n\n{tx.format_for_user()}",
         reply_markup=confirm_transaction_keyboard()
     )
