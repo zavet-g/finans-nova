@@ -220,19 +220,19 @@ def add_transaction(transaction: Transaction) -> int:
         spreadsheet = get_spreadsheet()
         worksheet = spreadsheet.worksheet("Транзакции")
 
-    all_values = worksheet.get_all_values()
-    row_num = len(all_values) + 1
+        all_values = worksheet.get_all_values()
+        row_num = len(all_values) + 1
 
-    now = datetime.now()
-    date_str = now.strftime("%Y-%m-%d")
-    time_str = now.strftime("%H:%M")
+        now = datetime.now()
+        date_str = now.strftime("%Y-%m-%d")
+        time_str = now.strftime("%H:%M")
 
-    tx_type = "доход" if transaction.type == TransactionType.INCOME else "расход"
+        tx_type = "доход" if transaction.type == TransactionType.INCOME else "расход"
 
-    if row_num == 2:
-        balance_formula = f'=Сводка!$B$2 + IF(C{row_num}="доход"; F{row_num}; -F{row_num})'
-    else:
-        balance_formula = f'=IF(F{row_num}=""; ""; G{row_num-1} + IF(C{row_num}="доход"; F{row_num}; -F{row_num}))'
+        if row_num == 2:
+            balance_formula = f'=Сводка!$B$2 + IF(C{row_num}="доход"; F{row_num}; -F{row_num})'
+        else:
+            balance_formula = f'=IF(F{row_num}=""; ""; G{row_num-1} + IF(C{row_num}="доход"; F{row_num}; -F{row_num}))'
 
         row = [
             date_str,
