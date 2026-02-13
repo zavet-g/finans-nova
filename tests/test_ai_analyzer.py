@@ -154,7 +154,7 @@ class TestParseTransactions:
         )
 
         with patch(
-            "src.services.ai_analyzer.call_yandex_gpt",
+            "src.services.ai_analyzer.call_yandex_gpt_no_stream",
             new_callable=AsyncMock,
             return_value=mock_response,
         ):
@@ -172,7 +172,7 @@ class TestParseTransactions:
         mock_response = '```json\n[{"type": "expense", "category": "Еда", "description": "Обед", "amount": 400}]\n```'
 
         with patch(
-            "src.services.ai_analyzer.call_yandex_gpt",
+            "src.services.ai_analyzer.call_yandex_gpt_no_stream",
             new_callable=AsyncMock,
             return_value=mock_response,
         ):
@@ -190,7 +190,7 @@ class TestParseTransactions:
         )
 
         with patch(
-            "src.services.ai_analyzer.call_yandex_gpt",
+            "src.services.ai_analyzer.call_yandex_gpt_no_stream",
             new_callable=AsyncMock,
             return_value=mock_response,
         ):
@@ -204,7 +204,7 @@ class TestParseTransactions:
     @pytest.mark.asyncio
     async def test_invalid_json_returns_none(self):
         with patch(
-            "src.services.ai_analyzer.call_yandex_gpt",
+            "src.services.ai_analyzer.call_yandex_gpt_no_stream",
             new_callable=AsyncMock,
             return_value="not json at all",
         ):
@@ -224,7 +224,7 @@ class TestParseTransactions:
         )
 
         with patch(
-            "src.services.ai_analyzer.call_yandex_gpt",
+            "src.services.ai_analyzer.call_yandex_gpt_no_stream",
             new_callable=AsyncMock,
             return_value=mock_response,
         ):

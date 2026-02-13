@@ -1,6 +1,20 @@
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
+from telegram import CopyTextButton, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
 
 from src.models.category import EXPENSE_CATEGORIES, INCOME_CATEGORY, TransactionType
+
+STYLE_PRIMARY = "primary"
+STYLE_SUCCESS = "success"
+STYLE_DANGER = "danger"
+
+
+def _styled(text: str, callback_data: str, style: str = None, **kwargs) -> InlineKeyboardButton:
+    """Создаёт InlineKeyboardButton с опциональной стилизацией (Bot API 9.4)."""
+    api_kwargs = {}
+    if style:
+        api_kwargs["style"] = style
+    return InlineKeyboardButton(
+        text, callback_data=callback_data, api_kwargs=api_kwargs or None, **kwargs
+    )
 
 
 def start_reply_keyboard() -> ReplyKeyboardMarkup:
@@ -26,10 +40,10 @@ def confirm_transaction_keyboard() -> InlineKeyboardMarkup:
     """Клавиатура подтверждения транзакции."""
     buttons = [
         [
-            InlineKeyboardButton("✅ Добавить", callback_data="tx:confirm"),
-            InlineKeyboardButton("✏️ Изменить", callback_data="tx:edit"),
+            _styled("✅ Добавить", "tx:confirm", STYLE_SUCCESS),
+            _styled("✏️ Изменить", "tx:edit"),
         ],
-        [InlineKeyboardButton("❌ Отмена", callback_data="tx:cancel")],
+        [_styled("❌ Отмена", "tx:cancel", STYLE_DANGER)],
     ]
     return InlineKeyboardMarkup(buttons)
 
@@ -38,14 +52,14 @@ def edit_transaction_keyboard() -> InlineKeyboardMarkup:
     """Клавиатура редактирования транзакции."""
     buttons = [
         [
-            InlineKeyboardButton("📁 Категория", callback_data="edit:category"),
-            InlineKeyboardButton("💰 Сумма", callback_data="edit:amount"),
+            _styled("📁 Категория", "edit:category"),
+            _styled("💰 Сумма", "edit:amount"),
         ],
         [
-            InlineKeyboardButton("📝 Описание", callback_data="edit:description"),
-            InlineKeyboardButton("🔄 Тип", callback_data="edit:type"),
+            _styled("📝 Описание", "edit:description"),
+            _styled("🔄 Тип", "edit:type"),
         ],
-        [InlineKeyboardButton("◀️ Назад", callback_data="edit:back")],
+        [_styled("◀️ Назад", "edit:back")],
     ]
     return InlineKeyboardMarkup(buttons)
 
@@ -98,9 +112,9 @@ def transactions_list_keyboard() -> InlineKeyboardMarkup:
 def backup_keyboard() -> InlineKeyboardMarkup:
     """Клавиатура раздела бэкапов."""
     buttons = [
-        [InlineKeyboardButton("📥 Скачать CSV", callback_data="backup:csv")],
-        [InlineKeyboardButton("💾 Сделать бэкап сейчас", callback_data="backup:now")],
-        [InlineKeyboardButton("◀️ Назад", callback_data="backup:back")],
+        [_styled("📥 Скачать CSV", "backup:csv", STYLE_PRIMARY)],
+        [_styled("💾 Сделать бэкап сейчас", "backup:now")],
+        [_styled("◀️ Назад", "backup:back")],
     ]
     return InlineKeyboardMarkup(buttons)
 
@@ -130,5 +144,18 @@ def yearly_charts_keyboard() -> InlineKeyboardMarkup:
         [InlineKeyboardButton("📈 Доходы по месяцам", callback_data="charts:yearly_income")],
         [InlineKeyboardButton("📉 Расходы по месяцам", callback_data="charts:yearly_expense")],
         [InlineKeyboardButton("◀️ Назад", callback_data="charts:menu")],
+    ]
+    return InlineKeyboardMarkup(buttons)
+
+
+def analytics_result_keyboard(summary_text: str) -> InlineKeyboardMarkup:
+    """Клавиатура результата аналитики с кнопкой копирования итогов."""
+    buttons = [
+        [
+            InlineKeyboardButton(
+                "📋 Скопировать итоги", copy_text=CopyTextButton(text=summary_text[:256])
+            )
+        ],
+        [InlineKeyboardButton("◀️ Назад", callback_data="analytics:back")],
     ]
     return InlineKeyboardMarkup(buttons)

@@ -11,6 +11,11 @@ MAIN_MSG_TYPE_KEY = "main_message_type"
 REPLY_KB_READY_KEY = "reply_keyboard_ready"
 REPLY_KEYBOARD_TEXT = "Главное меню"
 
+EFFECT_CELEBRATE = "5046509860389126442"
+EFFECT_THUMBS_UP = "5107584321108051014"
+EFFECT_FIRE = "5104841245755180586"
+EFFECT_HEART = "5159385139981059251"
+
 _user_locks: dict[int, asyncio.Lock] = {}
 
 
@@ -65,16 +70,36 @@ async def update_main_message(
     document=None,
     filename=None,
     caption=None,
+    show_caption_above_media: bool = None,
+    message_effect_id: str = None,
 ) -> Message | None:
     """Обновляет единственное сообщение бота в чате."""
     async with _get_lock(chat_id):
         return await _do_update(
-            context, chat_id, text, reply_markup, photo, document, filename, caption
+            context,
+            chat_id,
+            text,
+            reply_markup,
+            photo,
+            document,
+            filename,
+            caption,
+            show_caption_above_media,
+            message_effect_id,
         )
 
 
 async def _do_update(
-    context, chat_id, text, reply_markup, photo, document, filename, caption
+    context,
+    chat_id,
+    text,
+    reply_markup,
+    photo,
+    document,
+    filename,
+    caption,
+    show_caption_above_media=None,
+    message_effect_id=None,
 ) -> Message | None:
     bot = context.bot
     user_data = context.user_data
@@ -87,7 +112,7 @@ async def _do_update(
     elif document:
         new_type = "document"
 
-    can_edit = old_msg_id and old_msg_type == new_type == "text"
+    can_edit = old_msg_id and old_msg_type == new_type == "text" and not message_effect_id
 
     if can_edit:
         try:
@@ -118,6 +143,8 @@ async def _do_update(
                 photo=photo,
                 caption=caption,
                 reply_markup=reply_markup,
+                show_caption_above_media=show_caption_above_media,
+                message_effect_id=message_effect_id,
             )
         elif document:
             msg = await bot.send_document(
@@ -126,12 +153,14 @@ async def _do_update(
                 filename=filename,
                 caption=caption,
                 reply_markup=reply_markup,
+                message_effect_id=message_effect_id,
             )
         else:
             msg = await bot.send_message(
                 chat_id=chat_id,
                 text=text,
                 reply_markup=reply_markup,
+                message_effect_id=message_effect_id,
             )
 
         user_data[MAIN_MSG_KEY] = msg.message_id

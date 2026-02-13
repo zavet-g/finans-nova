@@ -76,7 +76,7 @@ async def parse_transactions(text: str) -> list[dict] | None:
 - "зарплата за ноябрь 100000" -> [{{"type": "income", "category": "Доход", "description": "Зарплата за ноябрь", "amount": 100000}}]"""
 
     try:
-        result = await call_yandex_gpt(prompt)
+        result = await call_yandex_gpt_no_stream(prompt)
         result = result.strip()
         if result.startswith("```"):
             result = result.split("\n", 1)[1].rsplit("```", 1)[0]
@@ -119,7 +119,7 @@ async def categorize_transaction(description: str, amount: float) -> dict:
 {{"type": "expense" или "income", "category": "название категории", "confidence": "high/medium/low"}}"""
 
     try:
-        result = await call_yandex_gpt(prompt)
+        result = await call_yandex_gpt_no_stream(prompt)
         data = json.loads(result)
         return {
             "type": TransactionType(data["type"]),
@@ -189,6 +189,70 @@ async def generate_monthly_report(
 
 async def call_yandex_gpt(prompt: str, temperature: float = 0.3) -> str:
     """Вызывает YandexGPT API с retry логикой."""
+    result = []
+    async for chunk in call_yandex_gpt_stream(prompt, temperature):
+        result.append(chunk)
+    return "".join(result)
+
+
+async def call_yandex_gpt_stream(prompt: str, temperature: float = 0.3):
+    """Вызывает YandexGPT API с стримингом. Yields текстовые чанки по мере генерации."""
+    headers = {
+        "Authorization": f"Api-Key {YANDEX_GPT_API_KEY}",
+        "Content-Type": "application/json",
+    }
+
+    body = {
+        "modelUri": f"gpt://{YANDEX_GPT_FOLDER_ID}/yandexgpt-lite",
+        "completionOptions": {
+            "stream": True,
+            "temperature": temperature,
+            "maxTokens": 2000,
+        },
+        "messages": [{"role": "user", "text": prompt}],
+    }
+
+    session = await get_gpt_session()
+
+    last_error = None
+    for attempt in range(1, MAX_RETRIES + 1):
+        try:
+            logger.info(f"YandexGPT stream request attempt {attempt}/{MAX_RETRIES}")
+            async with session.post(YANDEX_GPT_URL, headers=headers, json=body) as response:
+                if response.status != 200:
+                    error_text = await response.text()
+                    raise RuntimeError(f"YandexGPT API error: {response.status} - {error_text}")
+
+                accumulated = ""
+                async for line in response.content:
+                    decoded = line.decode("utf-8").strip()
+                    if not decoded:
+                        continue
+                    try:
+                        data = json.loads(decoded)
+                        text = data["result"]["alternatives"][0]["message"]["text"]
+                        new_text = text[len(accumulated) :]
+                        if new_text:
+                            accumulated = text
+                            yield new_text
+                    except (json.JSONDecodeError, KeyError, IndexError):
+                        continue
+
+                if not accumulated:
+                    raise RuntimeError("YandexGPT stream returned empty response")
+                return
+
+        except (aiohttp.ClientError, asyncio.TimeoutError) as e:
+            last_error = e
+            logger.warning(f"YandexGPT stream attempt {attempt} failed: {e}")
+            if attempt < MAX_RETRIES:
+                await asyncio.sleep(2**attempt)
+
+    raise RuntimeError(f"YandexGPT stream failed after {MAX_RETRIES} attempts: {last_error}")
+
+
+async def call_yandex_gpt_no_stream(prompt: str, temperature: float = 0.3) -> str:
+    """Вызывает YandexGPT API без стриминга (для парсинга JSON)."""
     headers = {
         "Authorization": f"Api-Key {YANDEX_GPT_API_KEY}",
         "Content-Type": "application/json",
@@ -283,6 +347,21 @@ async def generate_period_report(
     except Exception as e:
         logger.error(f"YandexGPT period report failed: {e}")
         return generate_fallback_period_report(summary, period_name)
+
+
+def build_period_report_prompt(
+    summary: dict,
+    transactions_markdown: str,
+    period_name: str,
+    enriched_data: dict = None,
+) -> str | None:
+    """Строит промпт для отчёта за период. Возвращает None если GPT не настроен."""
+    if not YANDEX_GPT_API_KEY or not YANDEX_GPT_FOLDER_ID:
+        return None
+
+    if enriched_data:
+        return _build_enriched_prompt(enriched_data, period_name)
+    return _build_simple_prompt(summary, transactions_markdown, period_name)
 
 
 def _build_enriched_prompt(data: dict, period_name: str) -> str:

@@ -8,6 +8,7 @@ from telegram.ext import ContextTypes
 from src.bot.handlers.menu import help_callback
 from src.bot.keyboards import (
     analytics_period_keyboard,
+    analytics_result_keyboard,
     backup_keyboard,
     categories_keyboard,
     charts_menu_keyboard,
@@ -18,7 +19,7 @@ from src.bot.keyboards import (
     transactions_list_keyboard,
     yearly_charts_keyboard,
 )
-from src.bot.message_manager import update_main_message
+from src.bot.message_manager import EFFECT_CELEBRATE, update_main_message
 from src.models.category import TransactionType, get_category_by_code
 
 logger = logging.getLogger(__name__)
@@ -89,6 +90,7 @@ async def show_transactions(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             photo=image,
             caption=f"Последние {len(transactions)} транзакций",
             reply_markup=transactions_list_keyboard(),
+            show_caption_above_media=True,
         )
 
     except Exception as e:
@@ -99,6 +101,39 @@ async def show_transactions(update: Update, context: ContextTypes.DEFAULT_TYPE) 
             text="Не удалось загрузить транзакции. Проверь настройки Google Sheets.",
             reply_markup=transactions_list_keyboard(),
         )
+
+
+DRAFT_THROTTLE_INTERVAL = 0.8
+
+
+async def _stream_ai_report(context, chat_id: int, prompt: str, period_name: str) -> str:
+    """Генерирует AI-отчёт со стримингом через sendMessageDraft (если доступен)."""
+    import time
+
+    from src.services.ai_analyzer import call_yandex_gpt_stream
+
+    header = f"AI-АНАЛИЗ ЗА {period_name.upper()}\n\n"
+    accumulated = ""
+    draft_supported = True
+    last_draft_time = 0.0
+
+    async for chunk in call_yandex_gpt_stream(prompt):
+        accumulated += chunk
+
+        now = time.monotonic()
+        if draft_supported and (now - last_draft_time) >= DRAFT_THROTTLE_INTERVAL:
+            try:
+                await context.bot.send_message_draft(
+                    chat_id=chat_id,
+                    draft_id=1,
+                    text=header + accumulated,
+                )
+                last_draft_time = now
+            except Exception as e:
+                logger.debug(f"sendMessageDraft unavailable: {e}")
+                draft_supported = False
+
+    return accumulated
 
 
 async def show_analytics_menu(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -194,6 +229,7 @@ async def _generate_current_month_chart(context: ContextTypes.DEFAULT_TYPE, chat
             caption=f"Финансовая сводка за {month_name(now.month)} {now.year}\n\n"
             f"Баланс месяца: {balance:,.0f} руб.".replace(",", " "),
             reply_markup=charts_menu_keyboard(),
+            show_caption_above_media=True,
         )
 
     except Exception as e:
@@ -254,6 +290,7 @@ async def _generate_yearly_chart(
             caption=f"{type_label} по месяцам за {now.year} год\n\n"
             f"Итого: {format_amount(total)} руб.",
             reply_markup=yearly_charts_keyboard(),
+            show_caption_above_media=True,
         )
 
     except Exception as e:
@@ -340,7 +377,10 @@ async def period_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
         import asyncio
 
-        from src.services.ai_analyzer import generate_period_report
+        from src.services.ai_analyzer import (
+            build_period_report_prompt,
+            generate_fallback_period_report,
+        )
         from src.services.sheets_async import async_get_enriched_analytics, async_get_period_summary
 
         summary, enriched_data = await asyncio.wait_for(
@@ -360,18 +400,36 @@ async def period_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             )
             return
 
-        report = await generate_period_report(
+        prompt = build_period_report_prompt(
             summary=summary,
             transactions_markdown="",
             period_name=period_name,
             enriched_data=enriched_data,
         )
 
+        if prompt:
+            report = await _stream_ai_report(context, chat_id, prompt, period_name)
+        else:
+            report = generate_fallback_period_report(summary, period_name)
+
+        from src.utils.formatters import format_amount
+
+        income = summary.get("income", 0)
+        expenses = summary.get("expenses", 0)
+        balance = income - expenses
+        copy_summary = (
+            f"Финансы за {period_name}:\n"
+            f"Доходы: {format_amount(income)} руб.\n"
+            f"Расходы: {format_amount(expenses)} руб.\n"
+            f"Баланс: {format_amount(balance, with_sign=True)} руб."
+        )
+
+        display_text = f"AI-АНАЛИЗ ЗА {period_name.upper()}\n\n{report}"
         await update_main_message(
             context,
             chat_id,
-            text=f"📊 AI-АНАЛИЗ ЗА {period_name.upper()}\n\n{report}",
-            reply_markup=main_menu_keyboard(),
+            text=display_text,
+            reply_markup=analytics_result_keyboard(copy_summary),
         )
 
     except asyncio.TimeoutError:
@@ -389,6 +447,21 @@ async def period_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
             chat_id,
             text=f"📊 Не удалось выполнить анализ.\nОшибка: {str(e)[:100]}",
             reply_markup=main_menu_keyboard(),
+        )
+
+
+async def analytics_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Обработчик callback-ов результата аналитики."""
+    query = update.callback_query
+    await safe_answer_callback(query)
+
+    chat_id = update.effective_chat.id
+    action = query.data.split(":")[1]
+
+    if action == "back":
+        welcome_text = "Отправь голосовое или текстовое сообщение с информацией о расходе/доходе."
+        await update_main_message(
+            context, chat_id, text=welcome_text, reply_markup=main_menu_keyboard()
         )
 
 
@@ -531,7 +604,13 @@ async def transaction_callback(update: Update, context: ContextTypes.DEFAULT_TYP
                     text += "\n\nВсе транзакции обработаны!"
         else:
             text = "Нет транзакции для подтверждения."
-        await update_main_message(context, chat_id, text=text, reply_markup=main_menu_keyboard())
+        await update_main_message(
+            context,
+            chat_id,
+            text=text,
+            reply_markup=main_menu_keyboard(),
+            message_effect_id=EFFECT_CELEBRATE if pending_tx else None,
+        )
 
     elif action == "edit":
         if pending_tx:
