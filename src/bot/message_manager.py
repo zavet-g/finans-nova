@@ -25,10 +25,9 @@ async def delete_user_message(message) -> None:
     if not message:
         return
     try:
-        logger.debug(f"delete_user_message: deleting msg_id={message.message_id}")
         await message.delete()
-    except Exception as e:
-        logger.debug(f"Could not delete user message: {e}")
+    except Exception:
+        pass
 
 
 async def setup_reply_keyboard(context, chat_id: int) -> None:
@@ -38,9 +37,7 @@ async def setup_reply_keyboard(context, chat_id: int) -> None:
     ReplyKeyboard сохраняется на клиенте после удаления сообщения.
     """
     if context.user_data.get(REPLY_KB_READY_KEY):
-        logger.debug(f"setup_reply_keyboard: skipped, already ready for chat={chat_id}")
         return
-    logger.debug(f"setup_reply_keyboard: setting up for chat={chat_id}")
     try:
         reply_kb = ReplyKeyboardMarkup(
             [[REPLY_KEYBOARD_TEXT]],
@@ -53,10 +50,10 @@ async def setup_reply_keyboard(context, chat_id: int) -> None:
         context.user_data[REPLY_KB_READY_KEY] = True
         try:
             await context.bot.delete_message(chat_id=chat_id, message_id=msg.message_id)
-        except Exception as e:
-            logger.debug(f"Could not delete setup message: {e}")
+        except Exception:
+            pass
     except Exception as e:
-        logger.debug(f"Could not setup reply keyboard: {e}")
+        logger.warning(f"Could not setup reply keyboard: {e}")
 
 
 async def update_main_message(
@@ -92,11 +89,6 @@ async def _do_update(
 
     can_edit = old_msg_id and old_msg_type == new_type == "text"
 
-    logger.debug(
-        f"_do_update: chat={chat_id}, old_id={old_msg_id}, "
-        f"old_type={old_msg_type}, new_type={new_type}, can_edit={can_edit}"
-    )
-
     if can_edit:
         try:
             msg = await bot.edit_message_text(
@@ -107,13 +99,12 @@ async def _do_update(
             )
             if isinstance(msg, Message):
                 user_data[MAIN_MSG_KEY] = msg.message_id
-            logger.debug(f"_do_update: edited message {old_msg_id}")
             return msg
         except BadRequest as e:
             error_msg = str(e).lower()
             if "message is not modified" in error_msg:
                 return None
-            logger.debug(f"Cannot edit main message: {e}, resending")
+            logger.warning(f"Cannot edit main message: {e}, resending")
         except TimedOut:
             logger.warning("Edit main message timeout, resending")
         except Exception as e:
@@ -145,7 +136,6 @@ async def _do_update(
 
         user_data[MAIN_MSG_KEY] = msg.message_id
         user_data[MAIN_MSG_TYPE_KEY] = new_type
-        logger.debug(f"_do_update: sent new {new_type} message {msg.message_id}")
     except Exception as e:
         logger.error(f"Failed to send main message: {e}")
         return None
@@ -153,8 +143,7 @@ async def _do_update(
     if old_msg_id and msg and old_msg_id != msg.message_id:
         try:
             await bot.delete_message(chat_id=chat_id, message_id=old_msg_id)
-            logger.debug(f"_do_update: deleted old message {old_msg_id}")
-        except Exception as e:
-            logger.debug(f"Could not delete old main message: {e}")
+        except Exception:
+            pass
 
     return msg
