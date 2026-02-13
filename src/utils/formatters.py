@@ -15,10 +15,21 @@ MONTHS_RU = {
     12: "Декабрь",
 }
 
+MONTHS_RU_SHORT = {
+    1: "Янв", 2: "Фев", 3: "Мар", 4: "Апр",
+    5: "Май", 6: "Июн", 7: "Июл", 8: "Авг",
+    9: "Сен", 10: "Окт", 11: "Ноя", 12: "Дек",
+}
+
 
 def month_name(month: int) -> str:
     """Возвращает название месяца на русском."""
     return MONTHS_RU.get(month, str(month))
+
+
+def month_name_short(month: int) -> str:
+    """Возвращает сокращенное название месяца."""
+    return MONTHS_RU_SHORT.get(month, str(month))
 
 
 def format_amount(amount: float, with_sign: bool = False) -> str:

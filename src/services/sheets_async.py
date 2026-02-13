@@ -47,6 +47,11 @@ async def async_get_expenses_by_category(year: int = None, month: int = None):
     return await run_in_executor(get_expenses_by_category)(year, month)
 
 
+async def async_get_yearly_monthly_breakdown(year: int):
+    from src.services.sheets import get_yearly_monthly_breakdown
+    return await run_in_executor(get_yearly_monthly_breakdown)(year)
+
+
 async def async_create_backup():
     from src.services.sheets import create_backup
     return await run_in_executor(create_backup)()

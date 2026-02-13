@@ -102,3 +102,23 @@ def health_keyboard() -> InlineKeyboardMarkup:
         [InlineKeyboardButton("◀️ Назад", callback_data="health:back")],
     ]
     return InlineKeyboardMarkup(buttons)
+
+
+def charts_menu_keyboard() -> InlineKeyboardMarkup:
+    """Подменю раздела графиков."""
+    buttons = [
+        [InlineKeyboardButton("📊 График за текущий месяц", callback_data="charts:current_month")],
+        [InlineKeyboardButton("📈 График за год", callback_data="charts:yearly")],
+        [InlineKeyboardButton("◀️ Назад", callback_data="charts:back")],
+    ]
+    return InlineKeyboardMarkup(buttons)
+
+
+def yearly_charts_keyboard() -> InlineKeyboardMarkup:
+    """Подменю годовых графиков."""
+    buttons = [
+        [InlineKeyboardButton("📈 Доходы по месяцам", callback_data="charts:yearly_income")],
+        [InlineKeyboardButton("📉 Расходы по месяцам", callback_data="charts:yearly_expense")],
+        [InlineKeyboardButton("◀️ Назад", callback_data="charts:menu")],
+    ]
+    return InlineKeyboardMarkup(buttons)

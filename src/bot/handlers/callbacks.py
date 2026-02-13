@@ -13,6 +13,8 @@ from src.bot.keyboards import (
     edit_transaction_keyboard,
     categories_keyboard,
     health_keyboard,
+    charts_menu_keyboard,
+    yearly_charts_keyboard,
 )
 from src.bot.handlers.menu import help_callback
 from src.models.category import TransactionType, get_category_by_code
@@ -169,10 +171,45 @@ async def show_analytics_menu(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 async def show_charts(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Показывает графики расходов."""
+    """Показывает подменю графиков."""
     query = update.callback_query
 
-    await safe_edit_message(query, "📈 Генерирую графики...")
+    await safe_edit_message(query, "Выбери период для графиков:", reply_markup=charts_menu_keyboard())
+
+
+async def charts_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Обработчик callback-ов подменю графиков."""
+    query = update.callback_query
+    await safe_answer_callback(query)
+
+    action = query.data.split(":")[1]
+
+    if action == "back":
+        welcome_text = (
+            "Отправь голосовое или текстовое сообщение "
+            "с информацией о расходе/доходе."
+        )
+        await safe_edit_message(query, welcome_text, reply_markup=main_menu_keyboard())
+
+    elif action == "menu":
+        await safe_edit_message(query, "Выбери период для графиков:", reply_markup=charts_menu_keyboard())
+
+    elif action == "current_month":
+        await _generate_current_month_chart(query)
+
+    elif action == "yearly":
+        await safe_edit_message(query, "Выбери тип годового графика:", reply_markup=yearly_charts_keyboard())
+
+    elif action == "yearly_income":
+        await _generate_yearly_chart(query, chart_type="income")
+
+    elif action == "yearly_expense":
+        await _generate_yearly_chart(query, chart_type="expenses")
+
+
+async def _generate_current_month_chart(query) -> None:
+    """Генерирует график за текущий месяц."""
+    await safe_edit_message(query, "Генерирую графики...")
 
     try:
         import asyncio
@@ -186,10 +223,10 @@ async def show_charts(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         if summary.get("expenses", 0) == 0 and summary.get("income", 0) == 0:
             await safe_reply(
                 query.message,
-                text="📈 ГРАФИКИ\n\n"
+                text="ГРАФИКИ\n\n"
                      "Пока недостаточно данных для построения графиков.\n"
                      "Добавь несколько транзакций.",
-                reply_markup=main_menu_keyboard()
+                reply_markup=charts_menu_keyboard()
             )
             return
 
@@ -202,18 +239,72 @@ async def show_charts(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         await safe_reply(
             query.message,
             photo=chart,
-            caption=f"📈 Финансовая сводка за {month_name(now.month)} {now.year}\n\n"
+            caption=f"Финансовая сводка за {month_name(now.month)} {now.year}\n\n"
                     f"Баланс месяца: {balance:,.0f} руб.".replace(",", " "),
-            reply_markup=main_menu_keyboard()
+            reply_markup=charts_menu_keyboard()
         )
 
     except Exception as e:
-        logger.error(f"Failed to generate charts: {e}")
+        logger.error(f"Failed to generate monthly chart: {e}")
         await safe_reply(
             query.message,
-            text="📈 Не удалось построить графики.\n"
-                 f"Ошибка: {str(e)[:100]}",
-            reply_markup=main_menu_keyboard()
+            text=f"Не удалось построить графики.\nОшибка: {str(e)[:100]}",
+            reply_markup=charts_menu_keyboard()
+        )
+
+
+async def _generate_yearly_chart(query, chart_type: str) -> None:
+    """Генерирует годовой график доходов или расходов."""
+    is_income = chart_type == "income"
+    label = "доходов" if is_income else "расходов"
+    await safe_edit_message(query, f"Генерирую график {label} за год...")
+
+    try:
+        import asyncio
+        from src.services.sheets_async import async_get_yearly_monthly_breakdown
+        from src.services.charts import generate_yearly_income_chart, generate_yearly_expense_chart
+        from src.utils.formatters import format_amount
+
+        now = datetime.now()
+        data = await async_get_yearly_monthly_breakdown(now.year)
+
+        monthly_data = data[chart_type]
+        total = sum(monthly_data.values())
+
+        if total == 0:
+            await safe_reply(
+                query.message,
+                text=f"ГРАФИК ЗА ГОД\n\n"
+                     f"Нет данных о {label} за {now.year} год.",
+                reply_markup=yearly_charts_keyboard()
+            )
+            return
+
+        loop = asyncio.get_event_loop()
+        if is_income:
+            chart = await loop.run_in_executor(
+                None, generate_yearly_income_chart, monthly_data, now.year
+            )
+        else:
+            chart = await loop.run_in_executor(
+                None, generate_yearly_expense_chart, monthly_data, now.year
+            )
+
+        type_label = "Доходы" if is_income else "Расходы"
+        await safe_reply(
+            query.message,
+            photo=chart,
+            caption=f"{type_label} по месяцам за {now.year} год\n\n"
+                    f"Итого: {format_amount(total)} руб.",
+            reply_markup=yearly_charts_keyboard()
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to generate yearly {chart_type} chart: {e}")
+        await safe_reply(
+            query.message,
+            text=f"Не удалось построить график.\nОшибка: {str(e)[:100]}",
+            reply_markup=yearly_charts_keyboard()
         )
 
 

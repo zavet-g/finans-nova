@@ -498,6 +498,42 @@ def get_expenses_by_category(year: int = None, month: int = None) -> dict:
     return summary.get("by_category", {})
 
 
+def get_yearly_monthly_breakdown(year: int) -> dict:
+    """Возвращает помесячную разбивку доходов и расходов за год."""
+    spreadsheet = get_spreadsheet()
+    worksheet = spreadsheet.worksheet("Транзакции")
+
+    all_values = worksheet.get_all_values()
+    if len(all_values) <= 1:
+        return {
+            "income": {m: 0 for m in range(1, 13)},
+            "expenses": {m: 0 for m in range(1, 13)},
+        }
+
+    income = {m: 0 for m in range(1, 13)}
+    expenses = {m: 0 for m in range(1, 13)}
+    year_str = str(year)
+
+    for row in all_values[1:]:
+        try:
+            date_str = row[0] if row[0] else ""
+            if not date_str.startswith(year_str):
+                continue
+
+            month = int(date_str[5:7])
+            amount = float(row[5]) if len(row) > 5 and row[5] else 0
+            tx_type = row[2] if len(row) > 2 else ""
+
+            if tx_type == "доход":
+                income[month] += amount
+            elif tx_type == "расход":
+                expenses[month] += amount
+
+        except (ValueError, IndexError):
+            continue
+
+    return {"income": income, "expenses": expenses}
+
 
 
 def create_backup() -> str:

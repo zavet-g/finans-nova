@@ -27,7 +27,9 @@
       "Bash(python -m py_compile:*)",
       "Bash(./venv/bin/pip install:*)",
       "Bash(cat:*)",
-      "Bash(make logs:*)"
+      "Bash(make logs:*)",
+      "Bash(/Users/artem/Desktop/dev/finans-nova/venv/bin/pip install:*)",
+      "Bash(/Users/artem/Desktop/dev/finans-nova/venv/bin/python:*)"
     ],
     "deny": [],
     "ask": []

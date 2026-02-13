@@ -21,6 +21,7 @@ from src.bot.handlers.callbacks import (
     edit_callback,
     category_callback,
     health_callback,
+    charts_callback,
 )
 
 from src.utils.logging_config import setup_logging
@@ -156,6 +157,7 @@ def main():
     _application.add_handler(CallbackQueryHandler(edit_callback, pattern=r"^edit:"))
     _application.add_handler(CallbackQueryHandler(category_callback, pattern=r"^cat:"))
     _application.add_handler(CallbackQueryHandler(health_callback, pattern=r"^health:"))
+    _application.add_handler(CallbackQueryHandler(charts_callback, pattern=r"^charts:"))
 
     _application.add_handler(MessageHandler(filters.VOICE, voice_message_handler))
     _application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_message_handler))

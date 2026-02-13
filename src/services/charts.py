@@ -348,3 +348,169 @@ def generate_monthly_summary_chart(summary: dict, month_name: str, year: int) ->
     plt.close()
 
     return buf
+
+
+def generate_yearly_income_chart(monthly_data: dict, year: int) -> BytesIO:
+    """Генерирует столбчатую диаграмму доходов по месяцам за год."""
+    from src.utils.formatters import MONTHS_RU_SHORT
+
+    months = list(range(1, 13))
+    amounts = [monthly_data.get(m, 0) for m in months]
+    labels = [MONTHS_RU_SHORT[m] for m in months]
+
+    total = sum(amounts)
+    if total == 0:
+        return generate_empty_chart("Нет данных о доходах за год")
+
+    non_zero = [a for a in amounts if a > 0]
+    avg = total / len(non_zero) if non_zero else 0
+    max_val = max(amounts)
+
+    fig, ax = plt.subplots(figsize=(14, 7))
+
+    bars = ax.bar(
+        labels, amounts,
+        color="#2ECC71",
+        width=0.65,
+        edgecolor="white",
+        linewidth=0.8,
+        zorder=3,
+    )
+
+    for bar, amount in zip(bars, amounts):
+        if amount > 0:
+            ax.text(
+                bar.get_x() + bar.get_width() / 2,
+                bar.get_height() + max_val * 0.02,
+                f"{int(amount):,}".replace(",", " "),
+                ha="center", va="bottom",
+                fontsize=9, fontweight="bold", color="#2C3E50",
+            )
+
+    ax.axhline(
+        y=avg, color="#27AE60", linestyle="--",
+        linewidth=1.5, alpha=0.7, zorder=2,
+        label=f"Среднее: {int(avg):,} руб.".replace(",", " "),
+    )
+
+    ax.set_title(
+        f"Доходы по месяцам за {year} год",
+        fontsize=16, fontweight="bold", color="#2C3E50", pad=20,
+    )
+    ax.text(
+        0.5, 1.02,
+        f"Итого за год: {int(total):,} руб.".replace(",", " "),
+        transform=ax.transAxes, ha="center",
+        fontsize=12, color="#7F8C8D",
+    )
+
+    ax.set_ylabel("Сумма (руб.)", fontsize=12, color="#2C3E50")
+
+    ax.yaxis.set_major_formatter(
+        plt.FuncFormatter(lambda x, p: f"{int(x):,}".replace(",", " "))
+    )
+
+    ax.grid(axis="y", alpha=0.3, linestyle="-", linewidth=0.5, zorder=0)
+    ax.set_axisbelow(True)
+
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.spines["left"].set_color("#BDC3C7")
+    ax.spines["bottom"].set_color("#BDC3C7")
+
+    ax.tick_params(axis="x", labelsize=11, colors="#2C3E50")
+    ax.tick_params(axis="y", labelsize=10, colors="#7F8C8D")
+
+    ax.legend(loc="upper right", fontsize=10, framealpha=0.9)
+
+    plt.tight_layout()
+
+    buf = BytesIO()
+    plt.savefig(buf, format="png", dpi=150, bbox_inches="tight", facecolor="white")
+    buf.seek(0)
+    plt.close()
+
+    return buf
+
+
+def generate_yearly_expense_chart(monthly_data: dict, year: int) -> BytesIO:
+    """Генерирует столбчатую диаграмму расходов по месяцам за год."""
+    from src.utils.formatters import MONTHS_RU_SHORT
+
+    months = list(range(1, 13))
+    amounts = [monthly_data.get(m, 0) for m in months]
+    labels = [MONTHS_RU_SHORT[m] for m in months]
+
+    total = sum(amounts)
+    if total == 0:
+        return generate_empty_chart("Нет данных о расходах за год")
+
+    non_zero = [a for a in amounts if a > 0]
+    avg = total / len(non_zero) if non_zero else 0
+    max_val = max(amounts)
+
+    fig, ax = plt.subplots(figsize=(14, 7))
+
+    bars = ax.bar(
+        labels, amounts,
+        color="#E74C3C",
+        width=0.65,
+        edgecolor="white",
+        linewidth=0.8,
+        zorder=3,
+    )
+
+    for bar, amount in zip(bars, amounts):
+        if amount > 0:
+            ax.text(
+                bar.get_x() + bar.get_width() / 2,
+                bar.get_height() + max_val * 0.02,
+                f"{int(amount):,}".replace(",", " "),
+                ha="center", va="bottom",
+                fontsize=9, fontweight="bold", color="#2C3E50",
+            )
+
+    ax.axhline(
+        y=avg, color="#C0392B", linestyle="--",
+        linewidth=1.5, alpha=0.7, zorder=2,
+        label=f"Среднее: {int(avg):,} руб.".replace(",", " "),
+    )
+
+    ax.set_title(
+        f"Расходы по месяцам за {year} год",
+        fontsize=16, fontweight="bold", color="#2C3E50", pad=20,
+    )
+    ax.text(
+        0.5, 1.02,
+        f"Итого за год: {int(total):,} руб.".replace(",", " "),
+        transform=ax.transAxes, ha="center",
+        fontsize=12, color="#7F8C8D",
+    )
+
+    ax.set_ylabel("Сумма (руб.)", fontsize=12, color="#2C3E50")
+
+    ax.yaxis.set_major_formatter(
+        plt.FuncFormatter(lambda x, p: f"{int(x):,}".replace(",", " "))
+    )
+
+    ax.grid(axis="y", alpha=0.3, linestyle="-", linewidth=0.5, zorder=0)
+    ax.set_axisbelow(True)
+
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.spines["left"].set_color("#BDC3C7")
+    ax.spines["bottom"].set_color("#BDC3C7")
+
+    ax.tick_params(axis="x", labelsize=11, colors="#2C3E50")
+    ax.tick_params(axis="y", labelsize=10, colors="#7F8C8D")
+
+    ax.legend(loc="upper right", fontsize=10, framealpha=0.9)
+
+    plt.tight_layout()
+
+    buf = BytesIO()
+    plt.savefig(buf, format="png", dpi=150, bbox_inches="tight", facecolor="white")
+    buf.seek(0)
+    plt.close()
+
+    return buf
