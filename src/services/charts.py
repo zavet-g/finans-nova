@@ -509,6 +509,126 @@ def generate_yearly_income_chart(monthly_data: dict, year: int) -> BytesIO:
     return buf
 
 
+def generate_transactions_image(transactions: list[dict]) -> BytesIO:
+    """Генерирует изображение-таблицу последних транзакций."""
+    if not transactions:
+        return generate_empty_chart("Нет транзакций")
+
+    row_height = 0.6
+    header_height = 0.8
+    padding = 0.4
+    fig_height = header_height + len(transactions) * row_height + padding
+
+    fig, ax = plt.subplots(figsize=(12, max(fig_height, 3)))
+    ax.set_xlim(0, 10)
+    ax.set_ylim(0, fig_height)
+    ax.axis("off")
+
+    ax.text(
+        5,
+        fig_height - 0.3,
+        "ПОСЛЕДНИЕ ТРАНЗАКЦИИ",
+        ha="center",
+        va="center",
+        fontsize=14,
+        fontweight="bold",
+        color="#2C3E50",
+    )
+
+    col_date = 0.3
+    col_cat = 1.8
+    col_desc = 4.2
+    col_amount = 9.7
+
+    y = fig_height - header_height
+
+    for i, tx in enumerate(transactions):
+        date_raw = tx.get("Дата", tx.get("Date", ""))
+        category = tx.get("Категория", tx.get("Category", ""))
+        description = tx.get("Описание", tx.get("Description", ""))
+        amount_raw = tx.get("Сумма", tx.get("Amount", "0"))
+        tx_type = tx.get("Тип", tx.get("Type", "expense"))
+
+        try:
+            date_obj = datetime.strptime(date_raw, "%Y-%m-%d")
+            date_str = date_obj.strftime("%d.%m")
+        except ValueError:
+            date_str = date_raw[:5] if date_raw else ""
+
+        is_income = tx_type in ("income", "доход")
+        sign = "+" if is_income else "-"
+        amount_color = "#2ECC71" if is_income else "#E74C3C"
+
+        try:
+            amount_clean = str(amount_raw).replace("\xa0", "").replace(" ", "")
+            amount_val = float(amount_clean)
+            amount_str = f"{sign}{int(amount_val):,} ₽".replace(",", " ")
+        except ValueError:
+            amount_str = f"{sign}{amount_raw} ₽"
+
+        if len(description) > 28:
+            description = description[:26] + ".."
+
+        cat_color = CATEGORY_COLORS.get(category, "#BDC3C7")
+
+        y_pos = y - i * row_height
+
+        if i % 2 == 0:
+            ax.add_patch(
+                plt.Rectangle(
+                    (0.1, y_pos - row_height * 0.45),
+                    9.8,
+                    row_height * 0.9,
+                    facecolor="#F8F9FA",
+                    edgecolor="none",
+                )
+            )
+
+        ax.text(col_date, y_pos, date_str, fontsize=10, va="center", color="#7F8C8D")
+
+        ax.add_patch(
+            plt.Rectangle(
+                (col_cat - 0.15, y_pos - 0.15),
+                0.08,
+                0.3,
+                facecolor=cat_color,
+                edgecolor="none",
+                clip_on=False,
+            )
+        )
+        ax.text(
+            col_cat,
+            y_pos,
+            category,
+            fontsize=10,
+            va="center",
+            fontweight="bold",
+            color="#2C3E50",
+        )
+
+        ax.text(col_desc, y_pos, description, fontsize=10, va="center", color="#555555")
+
+        ax.text(
+            col_amount,
+            y_pos,
+            amount_str,
+            fontsize=11,
+            va="center",
+            ha="right",
+            fontweight="bold",
+            color=amount_color,
+        )
+
+    plt.tight_layout()
+
+    buf = BytesIO()
+    plt.savefig(buf, format="png", dpi=150, bbox_inches="tight", facecolor="white")
+    buf.seek(0)
+    plt.close()
+
+    return buf
+
+
 def generate_yearly_expense_chart(monthly_data: dict, year: int) -> BytesIO:
     """Генерирует столбчатую диаграмму расходов по месяцам за год."""
     from src.utils.formatters import MONTHS_RU_SHORT

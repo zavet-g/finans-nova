@@ -1,6 +1,11 @@
-from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardMarkup
 
 from src.models.category import EXPENSE_CATEGORIES, INCOME_CATEGORY, TransactionType
+
+
+def start_reply_keyboard() -> ReplyKeyboardMarkup:
+    """ReplyKeyboard с кнопкой главного меню."""
+    return ReplyKeyboardMarkup([["Главное меню"]], resize_keyboard=True)
 
 
 def main_menu_keyboard() -> InlineKeyboardMarkup:
@@ -83,13 +88,11 @@ def back_keyboard(callback_data: str = "back") -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([[InlineKeyboardButton("◀️ Назад", callback_data=callback_data)]])
 
 
-def transactions_list_keyboard(has_more: bool = False) -> InlineKeyboardMarkup:
+def transactions_list_keyboard() -> InlineKeyboardMarkup:
     """Клавиатура для списка транзакций."""
-    buttons = []
-    if has_more:
-        buttons.append([InlineKeyboardButton("📜 Показать ещё", callback_data="transactions:more")])
-    buttons.append([InlineKeyboardButton("◀️ Назад", callback_data="transactions:back")])
-    return InlineKeyboardMarkup(buttons)
+    return InlineKeyboardMarkup(
+        [[InlineKeyboardButton("◀️ Назад", callback_data="transactions:back")]]
+    )
 
 
 def backup_keyboard() -> InlineKeyboardMarkup:

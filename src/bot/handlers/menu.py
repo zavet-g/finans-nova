@@ -1,10 +1,11 @@
 import logging
 
 from telegram import Update
-from telegram.error import BadRequest, TimedOut
+from telegram.error import BadRequest
 from telegram.ext import ContextTypes
 
 from src.bot.keyboards import main_menu_keyboard
+from src.bot.message_manager import delete_user_message, setup_reply_keyboard, update_main_message
 from src.config import ALLOWED_USER_IDS
 
 logger = logging.getLogger(__name__)
@@ -25,6 +26,12 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         logger.warning(f"Unauthorized access attempt from user {user.id}")
         return
 
+    chat_id = update.effective_chat.id
+    logger.debug(
+        f"start_command: user={user.id}, update_id={update.update_id}, "
+        f"message_id={update.message.message_id}"
+    )
+
     welcome_text = (
         f"Привет, {user.first_name}!\n\n"
         "Я твой личный финансовый аналитик.\n\n"
@@ -32,49 +39,12 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         "Например: «потратил 500 на такси» или «получил зарплату 100000»"
     )
 
-    await update.message.reply_text(welcome_text, reply_markup=main_menu_keyboard())
+    await setup_reply_keyboard(context, chat_id)
+    await update_main_message(
+        context, chat_id, text=welcome_text, reply_markup=main_menu_keyboard()
+    )
+    await delete_user_message(update.message)
     logger.info(f"User {user.id} started the bot")
-
-
-async def safe_edit_message(query, text: str, reply_markup=None, max_retries: int = 2):
-    for attempt in range(max_retries):
-        try:
-            return await query.edit_message_text(text, reply_markup=reply_markup)
-        except TimedOut:
-            if attempt < max_retries - 1:
-                logger.warning(f"Edit message timeout, retry {attempt + 1}/{max_retries}")
-                continue
-            logger.warning("Edit message timeout, sending new message instead")
-            try:
-                return await query.message.reply_text(text, reply_markup=reply_markup)
-            except Exception as e:
-                logger.error(f"Failed to send message after timeout: {e}")
-                return None
-        except BadRequest as e:
-            error_msg = str(e).lower()
-            if "message is not modified" in error_msg:
-                logger.debug("Message not modified, skipping edit")
-                return None
-            if "no text in the message" in error_msg or "message can't be edited" in error_msg:
-                logger.debug("Cannot edit message, sending new one")
-                try:
-                    return await query.message.reply_text(text, reply_markup=reply_markup)
-                except Exception as e2:
-                    logger.error(f"Failed to send replacement message: {e2}")
-                    return None
-            if "message to edit not found" in error_msg:
-                logger.debug("Message to edit not found, ignoring")
-                return None
-            logger.warning(f"BadRequest in edit_message: {e}")
-            return None
-        except Exception as e:
-            logger.error(f"Unexpected error editing message: {e}", exc_info=True)
-            try:
-                return await query.message.reply_text(text, reply_markup=reply_markup)
-            except Exception as e2:
-                logger.error(f"Failed to send fallback message: {e2}")
-                return None
-    return None
 
 
 async def help_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -97,15 +67,13 @@ async def help_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         "💾 Бэкап — экспорт данных"
     )
 
+    chat_id = update.effective_chat.id
     query = update.callback_query
     if query:
         try:
             await query.answer()
         except BadRequest as e:
-            if "query is too old" in str(e).lower():
-                logger.debug("Callback query too old, ignoring")
-            else:
+            if "query is too old" not in str(e).lower():
                 raise
-        await safe_edit_message(query, help_text, reply_markup=main_menu_keyboard())
-    else:
-        await update.message.reply_text(help_text, reply_markup=main_menu_keyboard())
+
+    await update_main_message(context, chat_id, text=help_text, reply_markup=main_menu_keyboard())

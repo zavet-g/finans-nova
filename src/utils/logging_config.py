@@ -78,4 +78,7 @@ def setup_logging(log_dir: str = "logs", log_level: str = "INFO"):
     logging.getLogger("httpcore").setLevel(logging.WARNING)
     logging.getLogger("telegram").setLevel(logging.INFO)
 
+    logging.getLogger("src.bot").setLevel(logging.DEBUG)
+    console_handler.setLevel(logging.DEBUG)
+
     logging.info("Logging configured successfully")

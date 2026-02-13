@@ -62,10 +62,14 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
         logger.warning(f"BadRequest: {context.error}, continuing...")
         return
 
-    if isinstance(update, Update) and update.effective_message:
+    if isinstance(update, Update) and update.effective_chat:
         try:
-            await update.effective_message.reply_text(
-                "Произошла ошибка при обработке запроса. Попробуй ещё раз."
+            from src.bot.message_manager import update_main_message
+
+            await update_main_message(
+                context,
+                update.effective_chat.id,
+                text="Произошла ошибка при обработке запроса. Попробуй ещё раз.",
             )
         except Exception as e:
             logger.error(f"Failed to send error message: {e}")
@@ -76,9 +80,44 @@ async def send_report_to_users(report: str):
     if not _application or not ALLOWED_USER_IDS:
         return
 
+    from telegram import Message
+
+    from src.bot.keyboards import main_menu_keyboard
+    from src.bot.message_manager import MAIN_MSG_KEY, MAIN_MSG_TYPE_KEY
+
     for user_id in ALLOWED_USER_IDS:
         try:
-            await _application.bot.send_message(chat_id=user_id, text=report)
+            user_data = _application.user_data.get(user_id, {})
+            old_msg_id = user_data.get(MAIN_MSG_KEY)
+            old_msg_type = user_data.get(MAIN_MSG_TYPE_KEY, "text")
+
+            if old_msg_id and old_msg_type == "text":
+                try:
+                    msg = await _application.bot.edit_message_text(
+                        chat_id=user_id,
+                        message_id=old_msg_id,
+                        text=report,
+                        reply_markup=main_menu_keyboard(),
+                    )
+                    if isinstance(msg, Message):
+                        user_data[MAIN_MSG_KEY] = msg.message_id
+                    logger.info(f"Report edited for user {user_id}")
+                    continue
+                except Exception as e:
+                    logger.debug(f"Could not edit report for {user_id}: {e}")
+
+            if old_msg_id:
+                try:
+                    await _application.bot.delete_message(chat_id=user_id, message_id=old_msg_id)
+                except Exception:
+                    pass
+
+            msg = await _application.bot.send_message(
+                chat_id=user_id, text=report, reply_markup=main_menu_keyboard()
+            )
+            user_data[MAIN_MSG_KEY] = msg.message_id
+            user_data[MAIN_MSG_TYPE_KEY] = "text"
+            _application.user_data[user_id] = user_data
             logger.info(f"Report sent to user {user_id}")
         except Exception as e:
             logger.error(f"Failed to send report to {user_id}: {e}")
@@ -153,7 +192,9 @@ def main():
 
     _application.add_error_handler(error_handler)
 
-    _application.add_handler(CommandHandler("start", start_command))
+    _application.add_handler(
+        CommandHandler("start", start_command, filters=filters.UpdateType.MESSAGE)
+    )
 
     _application.add_handler(CallbackQueryHandler(menu_callback, pattern=r"^menu:"))
     _application.add_handler(CallbackQueryHandler(period_callback, pattern=r"^period:"))
