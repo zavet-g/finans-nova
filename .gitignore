@@ -41,3 +41,5 @@ backups/
 task.txt
 CLAUDE.md
 PLAN.md
+
+.claude/
