@@ -1,12 +1,17 @@
-import logging
 import asyncio
+import logging
 from datetime import datetime
+
+import pytz
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.cron import CronTrigger
-import pytz
 
-from src.services.sheets import get_month_summary, get_month_transactions_markdown, create_backup, get_enriched_analytics
 from src.services.ai_analyzer import generate_monthly_report
+from src.services.sheets import (
+    create_backup,
+    get_enriched_analytics,
+    get_month_summary,
+)
 from src.utils.formatters import month_name
 
 logger = logging.getLogger(__name__)
@@ -40,7 +45,7 @@ async def generate_and_send_monthly_report():
 
         summary, previous_summary = await asyncio.gather(
             loop.run_in_executor(None, get_month_summary, year, month),
-            loop.run_in_executor(None, get_month_summary, prev_year, prev_month)
+            loop.run_in_executor(None, get_month_summary, prev_year, prev_month),
         )
 
         start_date = datetime(year, month, 1)

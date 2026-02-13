@@ -1,0 +1,17 @@
+.git
+.github
+.claude
+.venv
+venv
+tests
+logs
+backups
+.pytest_cache
+__pycache__
+*.md
+.gitignore
+.env
+.env.*
+credentials/
+ruff.toml
+requirements-ci.txt

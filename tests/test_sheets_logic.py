@@ -1,11 +1,10 @@
-import pytest
 from datetime import datetime
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 from src.services.sheets import (
     _analyze_categories,
-    _analyze_patterns,
     _analyze_comparison,
+    _analyze_patterns,
     calculate_month_summary,
     get_period_summary,
     get_yearly_monthly_breakdown,
@@ -35,8 +34,20 @@ class TestAnalyzeCategories:
 
     def test_percent_calculation(self):
         transactions = [
-            {"date": "2025-01-05", "type": "расход", "category": "Еда", "description": "Обед", "amount": 500},
-            {"date": "2025-01-06", "type": "расход", "category": "Такси", "description": "Такси", "amount": 500},
+            {
+                "date": "2025-01-05",
+                "type": "расход",
+                "category": "Еда",
+                "description": "Обед",
+                "amount": 500,
+            },
+            {
+                "date": "2025-01-06",
+                "type": "расход",
+                "category": "Такси",
+                "description": "Такси",
+                "amount": 500,
+            },
         ]
         by_category = {"Еда": 500, "Такси": 500}
         result = _analyze_categories(transactions, by_category)
@@ -46,7 +57,13 @@ class TestAnalyzeCategories:
 
     def test_with_previous_summary_trend(self):
         transactions = [
-            {"date": "2025-01-05", "type": "расход", "category": "Еда", "description": "Обед", "amount": 1500},
+            {
+                "date": "2025-01-05",
+                "type": "расход",
+                "category": "Еда",
+                "description": "Обед",
+                "amount": 1500,
+            },
         ]
         by_category = {"Еда": 1500}
         prev_summary = {"by_category": {"Еда": 1000}}
@@ -57,7 +74,13 @@ class TestAnalyzeCategories:
 
     def test_trend_none_when_no_previous(self):
         transactions = [
-            {"date": "2025-01-05", "type": "расход", "category": "Еда", "description": "Обед", "amount": 500},
+            {
+                "date": "2025-01-05",
+                "type": "расход",
+                "category": "Еда",
+                "description": "Обед",
+                "amount": 500,
+            },
         ]
         by_category = {"Еда": 500}
         result = _analyze_categories(transactions, by_category)
@@ -65,8 +88,20 @@ class TestAnalyzeCategories:
 
     def test_max_transaction(self):
         transactions = [
-            {"date": "2025-01-05", "type": "расход", "category": "Еда", "description": "Обед", "amount": 300},
-            {"date": "2025-01-06", "type": "расход", "category": "Еда", "description": "Ресторан", "amount": 3000},
+            {
+                "date": "2025-01-05",
+                "type": "расход",
+                "category": "Еда",
+                "description": "Обед",
+                "amount": 300,
+            },
+            {
+                "date": "2025-01-06",
+                "type": "расход",
+                "category": "Еда",
+                "description": "Ресторан",
+                "amount": 3000,
+            },
         ]
         by_category = {"Еда": 3300}
         result = _analyze_categories(transactions, by_category)
@@ -75,7 +110,13 @@ class TestAnalyzeCategories:
 
     def test_empty_category_skipped(self):
         transactions = [
-            {"date": "2025-01-05", "type": "доход", "category": "Доход", "description": "Зарплата", "amount": 100000},
+            {
+                "date": "2025-01-05",
+                "type": "доход",
+                "category": "Доход",
+                "description": "Зарплата",
+                "amount": 100000,
+            },
         ]
         by_category = {"Доход": 100000}
         result = _analyze_categories(transactions, by_category)
@@ -83,8 +124,20 @@ class TestAnalyzeCategories:
 
     def test_weekday_weekend_split(self):
         transactions = [
-            {"date": "2025-01-06", "type": "расход", "category": "Еда", "description": "Обед", "amount": 500},
-            {"date": "2025-01-11", "type": "расход", "category": "Еда", "description": "Ужин", "amount": 2000},
+            {
+                "date": "2025-01-06",
+                "type": "расход",
+                "category": "Еда",
+                "description": "Обед",
+                "amount": 500,
+            },
+            {
+                "date": "2025-01-11",
+                "type": "расход",
+                "category": "Еда",
+                "description": "Ужин",
+                "amount": 2000,
+            },
         ]
         by_category = {"Еда": 2500}
         result = _analyze_categories(transactions, by_category)
@@ -102,19 +155,61 @@ class TestAnalyzePatterns:
 
     def test_only_income_returns_empty(self):
         transactions = [
-            {"date": "2025-01-05", "type": "доход", "category": "Доход", "description": "Зарплата", "amount": 100000},
+            {
+                "date": "2025-01-05",
+                "type": "доход",
+                "category": "Доход",
+                "description": "Зарплата",
+                "amount": 100000,
+            },
         ]
         result = _analyze_patterns(transactions)
         assert result["anomalies"] == []
 
     def test_anomaly_detection(self):
         transactions = [
-            {"date": "2025-01-05", "type": "расход", "category": "Еда", "description": "Обед", "amount": 300},
-            {"date": "2025-01-06", "type": "расход", "category": "Еда", "description": "Обед", "amount": 350},
-            {"date": "2025-01-07", "type": "расход", "category": "Еда", "description": "Обед", "amount": 400},
-            {"date": "2025-01-08", "type": "расход", "category": "Еда", "description": "Обед", "amount": 300},
-            {"date": "2025-01-09", "type": "расход", "category": "Еда", "description": "Обед", "amount": 350},
-            {"date": "2025-01-10", "type": "расход", "category": "Развлечения", "description": "Концерт", "amount": 15000},
+            {
+                "date": "2025-01-05",
+                "type": "расход",
+                "category": "Еда",
+                "description": "Обед",
+                "amount": 300,
+            },
+            {
+                "date": "2025-01-06",
+                "type": "расход",
+                "category": "Еда",
+                "description": "Обед",
+                "amount": 350,
+            },
+            {
+                "date": "2025-01-07",
+                "type": "расход",
+                "category": "Еда",
+                "description": "Обед",
+                "amount": 400,
+            },
+            {
+                "date": "2025-01-08",
+                "type": "расход",
+                "category": "Еда",
+                "description": "Обед",
+                "amount": 300,
+            },
+            {
+                "date": "2025-01-09",
+                "type": "расход",
+                "category": "Еда",
+                "description": "Обед",
+                "amount": 350,
+            },
+            {
+                "date": "2025-01-10",
+                "type": "расход",
+                "category": "Развлечения",
+                "description": "Концерт",
+                "amount": 15000,
+            },
         ]
         result = _analyze_patterns(transactions)
         assert len(result["anomalies"]) > 0
@@ -122,9 +217,27 @@ class TestAnalyzePatterns:
 
     def test_top_descriptions(self):
         transactions = [
-            {"date": "2025-01-05", "type": "расход", "category": "Еда", "description": "Обед в столовой", "amount": 300},
-            {"date": "2025-01-06", "type": "расход", "category": "Еда", "description": "Обед в столовой", "amount": 350},
-            {"date": "2025-01-07", "type": "расход", "category": "Еда", "description": "Обед в столовой", "amount": 400},
+            {
+                "date": "2025-01-05",
+                "type": "расход",
+                "category": "Еда",
+                "description": "Обед в столовой",
+                "amount": 300,
+            },
+            {
+                "date": "2025-01-06",
+                "type": "расход",
+                "category": "Еда",
+                "description": "Обед в столовой",
+                "amount": 350,
+            },
+            {
+                "date": "2025-01-07",
+                "type": "расход",
+                "category": "Еда",
+                "description": "Обед в столовой",
+                "amount": 400,
+            },
         ]
         result = _analyze_patterns(transactions)
         assert len(result["top_descriptions"]) > 0
@@ -132,8 +245,20 @@ class TestAnalyzePatterns:
 
     def test_time_patterns_most_expensive_day(self):
         transactions = [
-            {"date": "2025-01-06", "type": "расход", "category": "Еда", "description": "Обед", "amount": 500},
-            {"date": "2025-01-07", "type": "расход", "category": "Еда", "description": "Обед", "amount": 3000},
+            {
+                "date": "2025-01-06",
+                "type": "расход",
+                "category": "Еда",
+                "description": "Обед",
+                "amount": 500,
+            },
+            {
+                "date": "2025-01-07",
+                "type": "расход",
+                "category": "Еда",
+                "description": "Обед",
+                "amount": 3000,
+            },
         ]
         result = _analyze_patterns(transactions)
         assert "most_expensive_day" in result["time_patterns"]
@@ -141,7 +266,13 @@ class TestAnalyzePatterns:
 
     def test_short_descriptions_skipped(self):
         transactions = [
-            {"date": "2025-01-05", "type": "расход", "category": "Еда", "description": "ab", "amount": 500},
+            {
+                "date": "2025-01-05",
+                "type": "расход",
+                "category": "Еда",
+                "description": "ab",
+                "amount": 500,
+            },
         ]
         result = _analyze_patterns(transactions)
         assert len(result["top_descriptions"]) == 0
@@ -149,9 +280,25 @@ class TestAnalyzePatterns:
     def test_anomalies_limited_to_five(self):
         transactions = []
         for i in range(10):
-            transactions.append({"date": "2025-01-05", "type": "расход", "category": "Еда", "description": f"Обед {i}", "amount": 100})
+            transactions.append(
+                {
+                    "date": "2025-01-05",
+                    "type": "расход",
+                    "category": "Еда",
+                    "description": f"Обед {i}",
+                    "amount": 100,
+                }
+            )
         for i in range(10):
-            transactions.append({"date": "2025-01-05", "type": "расход", "category": "Еда", "description": f"Большая трата {i}", "amount": 50000})
+            transactions.append(
+                {
+                    "date": "2025-01-05",
+                    "type": "расход",
+                    "category": "Еда",
+                    "description": f"Большая трата {i}",
+                    "amount": 50000,
+                }
+            )
         result = _analyze_patterns(transactions)
         assert len(result["anomalies"]) <= 5
 

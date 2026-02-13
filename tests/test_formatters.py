@@ -1,12 +1,11 @@
-import pytest
 from src.utils.formatters import (
+    calculate_change_percent,
+    format_amount,
+    format_report_header,
+    format_summary,
+    format_transaction_list,
     month_name,
     month_name_short,
-    format_amount,
-    format_transaction_list,
-    format_report_header,
-    calculate_change_percent,
-    format_summary,
 )
 
 

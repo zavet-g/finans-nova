@@ -1,13 +1,13 @@
 import sys
-from pathlib import Path
 from datetime import datetime
+from pathlib import Path
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from src.models.transaction import Transaction
 from src.models.category import TransactionType
+from src.models.transaction import Transaction
 
 
 @pytest.fixture
@@ -83,11 +83,53 @@ def sample_sheets_rows():
 @pytest.fixture
 def sample_transactions_list():
     return [
-        {"date": "2025-01-05", "type": "расход", "category": "Еда", "description": "Продукты", "amount": 3000},
-        {"date": "2025-01-06", "type": "расход", "category": "Такси", "description": "До работы", "amount": 500},
-        {"date": "2025-01-07", "type": "доход", "category": "Доход", "description": "Зарплата", "amount": 100000},
-        {"date": "2025-01-10", "type": "расход", "category": "Развлечения", "description": "Кино", "amount": 800},
-        {"date": "2025-01-11", "type": "расход", "category": "Еда", "description": "Обед", "amount": 600},
-        {"date": "2025-01-15", "type": "расход", "category": "Еда", "description": "Ужин в ресторане", "amount": 5000},
-        {"date": "2025-01-20", "type": "расход", "category": "Здоровье", "description": "Аптека", "amount": 1200},
+        {
+            "date": "2025-01-05",
+            "type": "расход",
+            "category": "Еда",
+            "description": "Продукты",
+            "amount": 3000,
+        },
+        {
+            "date": "2025-01-06",
+            "type": "расход",
+            "category": "Такси",
+            "description": "До работы",
+            "amount": 500,
+        },
+        {
+            "date": "2025-01-07",
+            "type": "доход",
+            "category": "Доход",
+            "description": "Зарплата",
+            "amount": 100000,
+        },
+        {
+            "date": "2025-01-10",
+            "type": "расход",
+            "category": "Развлечения",
+            "description": "Кино",
+            "amount": 800,
+        },
+        {
+            "date": "2025-01-11",
+            "type": "расход",
+            "category": "Еда",
+            "description": "Обед",
+            "amount": 600,
+        },
+        {
+            "date": "2025-01-15",
+            "type": "расход",
+            "category": "Еда",
+            "description": "Ужин в ресторане",
+            "amount": 5000,
+        },
+        {
+            "date": "2025-01-20",
+            "type": "расход",
+            "category": "Здоровье",
+            "description": "Аптека",
+            "amount": 1200,
+        },
     ]

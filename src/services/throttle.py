@@ -1,9 +1,9 @@
-import logging
 import asyncio
+import logging
 import time
-from typing import Dict, Optional
 from collections import deque
 from dataclasses import dataclass
+from typing import Dict
 
 logger = logging.getLogger(__name__)
 
@@ -67,22 +67,18 @@ class ThrottleManager:
     def __init__(self):
         self.is_degraded = False
         self._normal_config = ThrottleConfig(
-            max_requests_per_second=10.0,
-            max_requests_per_minute=100.0,
-            burst_size=5
+            max_requests_per_second=10.0, max_requests_per_minute=100.0, burst_size=5
         )
         self._degraded_config = ThrottleConfig(
-            max_requests_per_second=2.0,
-            max_requests_per_minute=30.0,
-            burst_size=2
+            max_requests_per_second=2.0, max_requests_per_minute=30.0, burst_size=2
         )
 
         self.rate_limiters: Dict[str, RateLimiter] = {
-            'voice': RateLimiter(self._normal_config),
-            'text': RateLimiter(self._normal_config),
-            'callback': RateLimiter(self._normal_config),
-            'ai': RateLimiter(self._normal_config),
-            'sheets': RateLimiter(self._normal_config),
+            "voice": RateLimiter(self._normal_config),
+            "text": RateLimiter(self._normal_config),
+            "callback": RateLimiter(self._normal_config),
+            "ai": RateLimiter(self._normal_config),
+            "sheets": RateLimiter(self._normal_config),
         }
 
     def enable_degraded_mode(self):

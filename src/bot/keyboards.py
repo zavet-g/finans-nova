@@ -1,4 +1,5 @@
 from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+
 from src.models.category import EXPENSE_CATEGORIES, INCOME_CATEGORY, TransactionType
 
 
@@ -47,7 +48,13 @@ def edit_transaction_keyboard() -> InlineKeyboardMarkup:
 def categories_keyboard(tx_type: TransactionType) -> InlineKeyboardMarkup:
     """Клавиатура выбора категории."""
     if tx_type == TransactionType.INCOME:
-        buttons = [[InlineKeyboardButton(INCOME_CATEGORY.name, callback_data=f"cat:{INCOME_CATEGORY.code}")]]
+        buttons = [
+            [
+                InlineKeyboardButton(
+                    INCOME_CATEGORY.name, callback_data=f"cat:{INCOME_CATEGORY.code}"
+                )
+            ]
+        ]
     else:
         buttons = [
             [InlineKeyboardButton(cat.name, callback_data=f"cat:{cat.code}")]

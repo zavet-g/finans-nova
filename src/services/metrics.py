@@ -1,11 +1,12 @@
+import asyncio
 import logging
 import time
-import asyncio
-import psutil
-from datetime import datetime, timedelta
-from typing import Dict, Any, Optional, List
 from collections import defaultdict, deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+from datetime import datetime
+from typing import Any, Dict, Optional
+
+import psutil
 
 logger = logging.getLogger(__name__)
 
@@ -55,10 +56,10 @@ class MetricsCollector:
         self.start_time = time.time()
 
         self.services: Dict[str, ServiceStatus] = {
-            'yandex_gpt': ServiceStatus(),
-            'yandex_stt': ServiceStatus(),
-            'google_sheets': ServiceStatus(),
-            'telegram': ServiceStatus(),
+            "yandex_gpt": ServiceStatus(),
+            "yandex_stt": ServiceStatus(),
+            "google_sheets": ServiceStatus(),
+            "telegram": ServiceStatus(),
         }
 
         self.request_types: Dict[str, RequestMetrics] = defaultdict(RequestMetrics)
@@ -90,7 +91,9 @@ class MetricsCollector:
                 await asyncio.sleep(5)
 
                 loop = asyncio.get_event_loop()
-                cpu = await loop.run_in_executor(None, lambda: self._process.cpu_percent(interval=1.0))
+                cpu = await loop.run_in_executor(
+                    None, lambda: self._process.cpu_percent(interval=1.0)
+                )
                 memory = self._process.memory_info().rss / 1024 / 1024
 
                 self.cpu_samples.append(cpu)
@@ -114,11 +117,7 @@ class MetricsCollector:
         self.response_times.append(duration)
 
     def record_service_call(
-        self,
-        service: str,
-        success: bool,
-        duration: float,
-        error: Optional[str] = None
+        self, service: str, success: bool, duration: float, error: Optional[str] = None
     ):
         if service not in self.services:
             logger.warning(f"Unknown service: {service}")
@@ -139,9 +138,8 @@ class MetricsCollector:
             status.avg_response_time = duration
         else:
             status.avg_response_time = (
-                (status.avg_response_time * (status.total_calls - 1) + duration)
-                / status.total_calls
-            )
+                status.avg_response_time * (status.total_calls - 1) + duration
+            ) / status.total_calls
 
     def get_uptime(self) -> float:
         return time.time() - self.start_time
@@ -171,7 +169,8 @@ class MetricsCollector:
 
     def get_overall_health(self) -> str:
         unhealthy_services = [
-            name for name, status in self.services.items()
+            name
+            for name, status in self.services.items()
             if not status.is_healthy and status.total_calls > 0
         ]
 
@@ -200,10 +199,12 @@ class MetricsCollector:
                 "total": total_requests,
                 "success": total_success,
                 "errors": total_errors,
-                "success_rate": round((total_success / total_requests * 100) if total_requests > 0 else 100.0, 2)
+                "success_rate": round(
+                    (total_success / total_requests * 100) if total_requests > 0 else 100.0, 2
+                ),
             },
             "response_times": self.get_response_time_percentiles(),
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
         }
 
     def get_services_status(self) -> Dict[str, Dict[str, Any]]:
@@ -215,7 +216,7 @@ class MetricsCollector:
                 "avg_response_time": round(status.avg_response_time, 3),
                 "last_success": status.last_success.isoformat() if status.last_success else None,
                 "last_failure": status.last_failure.isoformat() if status.last_failure else None,
-                "last_error": status.last_error
+                "last_error": status.last_error,
             }
             for name, status in self.services.items()
         }
@@ -227,7 +228,7 @@ class MetricsCollector:
                 "success": metrics.success,
                 "errors": metrics.errors,
                 "avg_duration": round(metrics.avg_duration, 3),
-                "success_rate": round(metrics.success_rate, 2)
+                "success_rate": round(metrics.success_rate, 2),
             }
             for name, metrics in self.request_types.items()
             if metrics.count > 0

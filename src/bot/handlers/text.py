@@ -1,11 +1,12 @@
 import logging
 import re
-from telegram import Update
-from telegram.ext import ContextTypes
-from telegram.error import TimedOut, BadRequest
 
-from src.bot.keyboards import confirm_transaction_keyboard, edit_transaction_keyboard
+from telegram import Update
+from telegram.error import BadRequest, TimedOut
+from telegram.ext import ContextTypes
+
 from src.bot.handlers.menu import is_user_allowed
+from src.bot.keyboards import confirm_transaction_keyboard, edit_transaction_keyboard
 from src.utils.metrics_decorator import track_request
 
 logger = logging.getLogger(__name__)
@@ -31,11 +32,10 @@ async def safe_reply(message, text: str, reply_markup=None):
 
 def parse_multiple_transactions(text: str) -> list[dict]:
     """Парсит несколько транзакций из текста."""
-    from src.models.category import TransactionType, EXPENSE_CATEGORIES, INCOME_CATEGORY
 
     transactions = []
 
-    parts = re.split(r'[,;]\s*|\s+и\s+', text)
+    parts = re.split(r"[,;]\s*|\s+и\s+", text)
 
     for part in parts:
         part = part.strip()
@@ -50,12 +50,14 @@ def parse_multiple_transactions(text: str) -> list[dict]:
         description = clean_description(part)
 
         if description:
-            transactions.append({
-                "type": tx_type,
-                "category": category,
-                "description": description,
-                "amount": amount,
-            })
+            transactions.append(
+                {
+                    "type": tx_type,
+                    "category": category,
+                    "description": description,
+                    "amount": amount,
+                }
+            )
 
     return transactions
 
@@ -110,7 +112,7 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
                 await safe_reply(
                     update.message,
                     f"Сумма изменена.\n\n{pending_tx.format_for_user()}",
-                    reply_markup=edit_transaction_keyboard()
+                    reply_markup=edit_transaction_keyboard(),
                 )
             except ValueError:
                 await safe_reply(update.message, "Не удалось распознать сумму. Введи число:")
@@ -122,14 +124,16 @@ async def text_message_handler(update: Update, context: ContextTypes.DEFAULT_TYP
             await safe_reply(
                 update.message,
                 f"Описание изменено.\n\n{pending_tx.format_for_user()}",
-                reply_markup=edit_transaction_keyboard()
+                reply_markup=edit_transaction_keyboard(),
             )
             return
 
     await process_transaction_text(update, context, text)
 
 
-async def process_transaction_text(update: Update, context: ContextTypes.DEFAULT_TYPE, text: str) -> None:
+async def process_transaction_text(
+    update: Update, context: ContextTypes.DEFAULT_TYPE, text: str
+) -> None:
     """Обрабатывает текст и создаёт транзакции через AI."""
     from src.models.transaction import Transaction
     from src.services.ai_analyzer import parse_transactions
@@ -144,7 +148,7 @@ async def process_transaction_text(update: Update, context: ContextTypes.DEFAULT
             await processing_msg.delete()
         except Exception:
             pass
-    except Exception as e:
+    except Exception:
         try:
             await processing_msg.delete()
         except Exception:
@@ -168,7 +172,7 @@ async def process_transaction_text(update: Update, context: ContextTypes.DEFAULT
             await safe_reply(
                 update.message,
                 f"Распознана транзакция:\n\n{transactions[0].format_for_user()}",
-                reply_markup=confirm_transaction_keyboard()
+                reply_markup=confirm_transaction_keyboard(),
             )
         else:
             context.user_data["pending_transactions"] = transactions
@@ -185,17 +189,19 @@ async def process_transaction_text(update: Update, context: ContextTypes.DEFAULT
             await safe_reply(
                 update.message,
                 "Не удалось распознать сумму. Попробуй написать иначе.\n"
-                "Например: «потратил 500 на такси»"
+                "Например: «потратил 500 на такси»",
             )
             return
 
         tx_type, category = determine_type_and_category(text)
-        parsed = [{
-            "type": tx_type,
-            "category": category,
-            "description": clean_description(text) or text,
-            "amount": amount,
-        }]
+        parsed = [
+            {
+                "type": tx_type,
+                "category": category,
+                "description": clean_description(text) or text,
+                "amount": amount,
+            }
+        ]
 
     if len(parsed) == 1:
         tx_data = parsed[0]
@@ -211,7 +217,7 @@ async def process_transaction_text(update: Update, context: ContextTypes.DEFAULT
         await safe_reply(
             update.message,
             f"Распознана транзакция:\n\n{transaction.format_for_user()}",
-            reply_markup=confirm_transaction_keyboard()
+            reply_markup=confirm_transaction_keyboard(),
         )
     else:
         transactions = [
@@ -237,11 +243,7 @@ async def show_next_transaction(update: Update, context: ContextTypes.DEFAULT_TY
     index = context.user_data.get("current_tx_index", 0)
 
     if index >= len(transactions):
-        await safe_reply(
-            update.message,
-            "Все транзакции обработаны!",
-            reply_markup=None
-        )
+        await safe_reply(update.message, "Все транзакции обработаны!", reply_markup=None)
         context.user_data.pop("pending_transactions", None)
         context.user_data.pop("current_tx_index", None)
         return
@@ -255,7 +257,7 @@ async def show_next_transaction(update: Update, context: ContextTypes.DEFAULT_TY
     await safe_reply(
         update.message,
         f"Транзакция {current} из {total}:\n\n{tx.format_for_user()}",
-        reply_markup=confirm_transaction_keyboard()
+        reply_markup=confirm_transaction_keyboard(),
     )
 
 
@@ -285,7 +287,7 @@ def parse_amount(text: str) -> float | None:
 
 def determine_type_and_category(text: str) -> tuple:
     """Определяет тип и категорию транзакции по тексту."""
-    from src.models.category import TransactionType, EXPENSE_CATEGORIES, INCOME_CATEGORY
+    from src.models.category import EXPENSE_CATEGORIES, INCOME_CATEGORY, TransactionType
 
     text_lower = text.lower()
 

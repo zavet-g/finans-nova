@@ -1,10 +1,11 @@
 import logging
-from telegram import Update
-from telegram.ext import ContextTypes
-from telegram.error import TimedOut, BadRequest
 
-from src.config import ALLOWED_USER_IDS
+from telegram import Update
+from telegram.error import BadRequest, TimedOut
+from telegram.ext import ContextTypes
+
 from src.bot.keyboards import main_menu_keyboard
+from src.config import ALLOWED_USER_IDS
 
 logger = logging.getLogger(__name__)
 

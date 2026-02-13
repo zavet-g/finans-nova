@@ -1,0 +1,33 @@
+target-version = "py311"
+line-length = 100
+
+exclude = [
+    ".git",
+    ".venv",
+    "venv",
+    "__pycache__",
+    ".pytest_cache",
+    ".ruff_cache",
+]
+
+[lint]
+select = [
+    "F",
+    "E",
+    "W",
+    "I",
+]
+
+ignore = [
+    "E501",
+]
+
+[lint.per-file-ignores]
+"__init__.py" = ["F401"]
+
+[lint.isort]
+known-first-party = ["src"]
+
+[format]
+quote-style = "double"
+indent-style = "space"

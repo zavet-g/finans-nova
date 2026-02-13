@@ -1,12 +1,13 @@
-import pytest
 import time
-from unittest.mock import patch, AsyncMock
+from unittest.mock import patch
+
+import pytest
 
 from src.utils.circuit_breaker import (
     CircuitBreaker,
     CircuitState,
-    get_yandex_circuit_breaker,
     get_sheets_circuit_breaker,
+    get_yandex_circuit_breaker,
 )
 
 

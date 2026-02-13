@@ -1,5 +1,5 @@
-import logging
 import asyncio
+import logging
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
@@ -11,18 +11,20 @@ async def convert_ogg_to_pcm(ogg_path: Path) -> Path:
 
     cmd = [
         "ffmpeg",
-        "-i", str(ogg_path),
-        "-ar", "16000",
-        "-ac", "1",
-        "-f", "s16le",
+        "-i",
+        str(ogg_path),
+        "-ar",
+        "16000",
+        "-ac",
+        "1",
+        "-f",
+        "s16le",
         "-y",
-        str(pcm_path)
+        str(pcm_path),
     ]
 
     process = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE
+        *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
     )
 
     stdout, stderr = await process.communicate()

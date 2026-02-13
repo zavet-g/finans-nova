@@ -1,5 +1,5 @@
 from datetime import datetime
-from typing import Dict, Any
+from typing import Any, Dict
 
 
 def format_uptime(uptime_seconds: float) -> str:
@@ -33,7 +33,7 @@ def get_status_indicator(status: str) -> str:
         "not_configured": "⚪",
         "configured": "✅",
         "timeout": "⏱",
-        "error": "❌"
+        "error": "❌",
     }
     return indicators.get(status.lower(), "❓")
 
@@ -56,7 +56,7 @@ def format_health_report(
     metrics_summary: Dict[str, Any],
     services_status: Dict[str, Dict[str, Any]],
     request_types: Dict[str, Dict[str, Any]],
-    health_checks: Dict[str, Dict[str, Any]]
+    health_checks: Dict[str, Dict[str, Any]],
 ) -> str:
     status = metrics_summary.get("status", "unknown")
     status_emoji = get_status_indicator(status)
@@ -100,26 +100,23 @@ def format_health_report(
         f"└─ Ошибок: {error_requests} ({100 - success_rate:.1f}%)",
         "",
         "⏱ Время отклика:",
-        f"├─ Медиана (P50): {p50*1000:.0f} мс",
-        f"├─ P95: {p95*1000:.0f} мс",
-        f"└─ P99: {p99*1000:.0f} мс",
+        f"├─ Медиана (P50): {p50 * 1000:.0f} мс",
+        f"├─ P95: {p95 * 1000:.0f} мс",
+        f"└─ P99: {p99 * 1000:.0f} мс",
     ]
 
     if request_types:
-        report_lines.extend([
-            "",
-            "━━━━━━━━━━━━━━━━━━━━━━━━",
-            "🎯 ОПЕРАЦИИ ПО ТИПАМ",
-            ""
-        ])
+        report_lines.extend(["", "━━━━━━━━━━━━━━━━━━━━━━━━", "🎯 ОПЕРАЦИИ ПО ТИПАМ", ""])
 
-        for op_type, stats in sorted(request_types.items(), key=lambda x: x[1]["count"], reverse=True):
+        for op_type, stats in sorted(
+            request_types.items(), key=lambda x: x[1]["count"], reverse=True
+        ):
             type_emoji = {
                 "voice": "🎤",
                 "text": "💬",
                 "callback": "🔘",
                 "ai": "🤖",
-                "sheets": "📊"
+                "sheets": "📊",
             }.get(op_type, "📌")
 
             count = stats["count"]
@@ -127,22 +124,17 @@ def format_health_report(
             type_success_rate = stats["success_rate"]
 
             report_lines.append(
-                f"{type_emoji} {op_type.capitalize()}: {count} ({type_success_rate:.1f}%, ~{avg_duration*1000:.0f}мс)"
+                f"{type_emoji} {op_type.capitalize()}: {count} ({type_success_rate:.1f}%, ~{avg_duration * 1000:.0f}мс)"
             )
 
-    report_lines.extend([
-        "",
-        "━━━━━━━━━━━━━━━━━━━━━━━━",
-        "🔌 ВНЕШНИЕ СЕРВИСЫ",
-        ""
-    ])
+    report_lines.extend(["", "━━━━━━━━━━━━━━━━━━━━━━━━", "🔌 ВНЕШНИЕ СЕРВИСЫ", ""])
 
     service_order = ["telegram", "yandex_gpt", "yandex_stt", "google_sheets"]
     service_names = {
         "telegram": "Telegram API",
         "yandex_gpt": "Yandex GPT",
         "yandex_stt": "Yandex STT",
-        "google_sheets": "Google Sheets"
+        "google_sheets": "Google Sheets",
     }
 
     for service_key in service_order:
@@ -168,14 +160,24 @@ def format_health_report(
         if last_failure:
             last_failure_dt = datetime.fromisoformat(last_failure)
             last_error = stats.get("last_error", "")
-            error_msg = f" ({last_error[:50]}...)" if last_error and len(last_error) > 50 else f" ({last_error})" if last_error else ""
-            report_lines.append(f"   └─ Последняя ошибка: {format_time_ago(last_failure_dt)}{error_msg}")
+            error_msg = (
+                f" ({last_error[:50]}...)"
+                if last_error and len(last_error) > 50
+                else f" ({last_error})"
+                if last_error
+                else ""
+            )
+            report_lines.append(
+                f"   └─ Последняя ошибка: {format_time_ago(last_failure_dt)}{error_msg}"
+            )
 
-    report_lines.extend([
-        "",
-        "━━━━━━━━━━━━━━━━━━━━━━━━",
-        f"⏰ Обновлено: {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}"
-    ])
+    report_lines.extend(
+        [
+            "",
+            "━━━━━━━━━━━━━━━━━━━━━━━━",
+            f"⏰ Обновлено: {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}",
+        ]
+    )
 
     return "\n".join(report_lines)
 

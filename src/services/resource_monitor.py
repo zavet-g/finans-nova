@@ -1,8 +1,9 @@
-import logging
 import asyncio
-import psutil
 import gc
+import logging
 from typing import Optional
+
+import psutil
 
 logger = logging.getLogger(__name__)
 
@@ -12,7 +13,7 @@ class ResourceMonitor:
         self,
         memory_threshold_mb: int = 500,
         cpu_threshold_percent: float = 80.0,
-        check_interval: int = 300
+        check_interval: int = 300,
     ):
         self.memory_threshold_mb = memory_threshold_mb
         self.cpu_threshold_percent = cpu_threshold_percent
@@ -55,19 +56,25 @@ class ResourceMonitor:
         should_degrade = False
 
         if memory_mb > self.memory_threshold_mb:
-            logger.warning(f"High memory usage detected: {memory_mb:.1f}MB > {self.memory_threshold_mb}MB")
+            logger.warning(
+                f"High memory usage detected: {memory_mb:.1f}MB > {self.memory_threshold_mb}MB"
+            )
             should_degrade = True
             await self._trigger_gc()
         elif cpu_percent > self.cpu_threshold_percent:
-            logger.warning(f"High CPU usage detected: {cpu_percent:.1f}% > {self.cpu_threshold_percent}%")
+            logger.warning(
+                f"High CPU usage detected: {cpu_percent:.1f}% > {self.cpu_threshold_percent}%"
+            )
             should_degrade = True
 
         if should_degrade and not self.is_degraded:
             from src.services.throttle import get_throttle_manager
+
             get_throttle_manager().enable_degraded_mode()
             self.is_degraded = True
         elif not should_degrade and self.is_degraded:
             from src.services.throttle import get_throttle_manager
+
             get_throttle_manager().disable_degraded_mode()
             logger.info("Resources back to normal, exiting degraded mode")
             self.is_degraded = False

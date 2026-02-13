@@ -1,7 +1,6 @@
-import time
 import logging
+import time
 from collections import defaultdict
-from datetime import datetime, timedelta
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +25,9 @@ class RateLimiter:
         user_requests[:] = [req_time for req_time in user_requests if req_time > cutoff_time]
 
         if len(user_requests) >= self.max_requests:
-            logger.warning(f"Rate limit exceeded for user {user_id}: {len(user_requests)} requests in {self.window_seconds}s")
+            logger.warning(
+                f"Rate limit exceeded for user {user_id}: {len(user_requests)} requests in {self.window_seconds}s"
+            )
             return False
 
         user_requests.append(current_time)

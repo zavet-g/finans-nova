@@ -15,27 +15,44 @@ class Category(NamedTuple):
 
 
 EXPENSE_CATEGORIES = [
-    Category("food", "Еда", TransactionType.EXPENSE,
-             ["продукты", "доставка", "ресторан", "кафе", "магазин", "пятёрочка"]),
-    Category("housing", "Жильё и быт", TransactionType.EXPENSE,
-             ["аренда", "жкх", "коммуналка", "интернет", "мебель", "ремонт"]),
-    Category("taxi", "Такси", TransactionType.EXPENSE,
-             ["такси", "uber", "яндекс такси", "каршеринг"]),
-    Category("health", "Здоровье", TransactionType.EXPENSE,
-             ["аптека", "врач", "клиника", "лекарства", "анализы"]),
-    Category("entertainment", "Развлечения", TransactionType.EXPENSE,
-             ["кино", "игры", "концерт", "бар"]),
-    Category("clothes", "Одежда", TransactionType.EXPENSE,
-             ["одежда", "обувь"]),
-    Category("subscriptions", "Подписки", TransactionType.EXPENSE,
-             ["подписка", "youtube premium", "icloud", "netflix", "spotify"]),
-    Category("gifts", "Подарки", TransactionType.EXPENSE,
-             ["подарок", "день рождения"]),
+    Category(
+        "food",
+        "Еда",
+        TransactionType.EXPENSE,
+        ["продукты", "доставка", "ресторан", "кафе", "магазин", "пятёрочка"],
+    ),
+    Category(
+        "housing",
+        "Жильё и быт",
+        TransactionType.EXPENSE,
+        ["аренда", "жкх", "коммуналка", "интернет", "мебель", "ремонт"],
+    ),
+    Category(
+        "taxi", "Такси", TransactionType.EXPENSE, ["такси", "uber", "яндекс такси", "каршеринг"]
+    ),
+    Category(
+        "health",
+        "Здоровье",
+        TransactionType.EXPENSE,
+        ["аптека", "врач", "клиника", "лекарства", "анализы"],
+    ),
+    Category(
+        "entertainment", "Развлечения", TransactionType.EXPENSE, ["кино", "игры", "концерт", "бар"]
+    ),
+    Category("clothes", "Одежда", TransactionType.EXPENSE, ["одежда", "обувь"]),
+    Category(
+        "subscriptions",
+        "Подписки",
+        TransactionType.EXPENSE,
+        ["подписка", "youtube premium", "icloud", "netflix", "spotify"],
+    ),
+    Category("gifts", "Подарки", TransactionType.EXPENSE, ["подарок", "день рождения"]),
     Category("other", "Прочее", TransactionType.EXPENSE, []),
 ]
 
-INCOME_CATEGORY = Category("income", "Доход", TransactionType.INCOME,
-                           ["зарплата", "доход", "перевод"])
+INCOME_CATEGORY = Category(
+    "income", "Доход", TransactionType.INCOME, ["зарплата", "доход", "перевод"]
+)
 
 ALL_CATEGORIES = EXPENSE_CATEGORIES + [INCOME_CATEGORY]
 

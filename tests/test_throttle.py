@@ -1,6 +1,6 @@
 import pytest
 
-from src.services.throttle import ThrottleConfig, RateLimiter, ThrottleManager
+from src.services.throttle import RateLimiter, ThrottleConfig, ThrottleManager
 
 
 @pytest.fixture
@@ -82,7 +82,9 @@ class TestRateLimiter:
 
     @pytest.mark.asyncio
     async def test_blocks_over_per_minute_limit(self):
-        config = ThrottleConfig(max_requests_per_second=100.0, max_requests_per_minute=5.0, burst_size=5)
+        config = ThrottleConfig(
+            max_requests_per_second=100.0, max_requests_per_minute=5.0, burst_size=5
+        )
         limiter = RateLimiter(config)
 
         for _ in range(5):
@@ -90,5 +92,3 @@ class TestRateLimiter:
 
         result = await limiter.acquire(wait=False)
         assert result is False
-
-

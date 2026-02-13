@@ -1,5 +1,6 @@
 import os
 from pathlib import Path
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -9,13 +10,13 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 YANDEX_GPT_API_KEY = os.getenv("YANDEX_GPT_API_KEY")
 YANDEX_GPT_FOLDER_ID = os.getenv("YANDEX_GPT_FOLDER_ID")
-GOOGLE_SHEETS_CREDENTIALS_FILE = os.getenv("GOOGLE_SHEETS_CREDENTIALS_FILE", "credentials/service_account.json")
+GOOGLE_SHEETS_CREDENTIALS_FILE = os.getenv(
+    "GOOGLE_SHEETS_CREDENTIALS_FILE", "credentials/service_account.json"
+)
 GOOGLE_SHEETS_SPREADSHEET_ID = os.getenv("GOOGLE_SHEETS_SPREADSHEET_ID")
 
 ALLOWED_USER_IDS = [
-    int(uid.strip())
-    for uid in os.getenv("ALLOWED_USER_IDS", "").split(",")
-    if uid.strip()
+    int(uid.strip()) for uid in os.getenv("ALLOWED_USER_IDS", "").split(",") if uid.strip()
 ]
 
 WHISPER_MODEL = "medium"

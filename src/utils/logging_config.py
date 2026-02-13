@@ -6,15 +6,15 @@ from pathlib import Path
 
 class ColoredFormatter(logging.Formatter):
     COLORS = {
-        'DEBUG': '\033[36m',
-        'INFO': '\033[32m',
-        'WARNING': '\033[33m',
-        'ERROR': '\033[31m',
-        'CRITICAL': '\033[35m',
+        "DEBUG": "\033[36m",
+        "INFO": "\033[32m",
+        "WARNING": "\033[33m",
+        "ERROR": "\033[31m",
+        "CRITICAL": "\033[35m",
     }
-    RESET = '\033[0m'
-    BOLD = '\033[1m'
-    DIM = '\033[2m'
+    RESET = "\033[0m"
+    BOLD = "\033[1m"
+    DIM = "\033[2m"
 
     def format(self, record):
         levelname = record.levelname
@@ -27,7 +27,7 @@ class ColoredFormatter(logging.Formatter):
             f"{self.DIM}{timestamp}{self.RESET}",
             f"{color}{self.BOLD}{levelname:8s}{self.RESET}",
             f"{self.DIM}[{module_info}]{self.RESET}",
-            record.getMessage()
+            record.getMessage(),
         ]
 
         formatted = " ".join(log_parts)
@@ -57,20 +57,14 @@ def setup_logging(log_dir: str = "logs", log_level: str = "INFO"):
     console_handler.setFormatter(console_formatter)
 
     file_handler = RotatingFileHandler(
-        log_path / "bot.log",
-        maxBytes=10 * 1024 * 1024,
-        backupCount=5,
-        encoding='utf-8'
+        log_path / "bot.log", maxBytes=10 * 1024 * 1024, backupCount=5, encoding="utf-8"
     )
     file_handler.setLevel(logging.DEBUG)
     file_formatter = logging.Formatter(file_format, date_format)
     file_handler.setFormatter(file_formatter)
 
     error_handler = RotatingFileHandler(
-        log_path / "errors.log",
-        maxBytes=10 * 1024 * 1024,
-        backupCount=10,
-        encoding='utf-8'
+        log_path / "errors.log", maxBytes=10 * 1024 * 1024, backupCount=10, encoding="utf-8"
     )
     error_handler.setLevel(logging.ERROR)
     error_formatter = logging.Formatter(file_format, date_format)

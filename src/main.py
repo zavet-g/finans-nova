@@ -5,29 +5,34 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from telegram import Update
-from telegram.ext import Application, CommandHandler, CallbackQueryHandler, MessageHandler, filters, ContextTypes
-from telegram.error import TelegramError, TimedOut, NetworkError, BadRequest
+from telegram.error import BadRequest, NetworkError, TimedOut
+from telegram.ext import (
+    Application,
+    CallbackQueryHandler,
+    CommandHandler,
+    ContextTypes,
+    MessageHandler,
+    filters,
+)
 
-from src.config import TELEGRAM_BOT_TOKEN, ALLOWED_USER_IDS
+from src.bot.handlers.callbacks import (
+    backup_callback,
+    category_callback,
+    charts_callback,
+    edit_callback,
+    health_callback,
+    menu_callback,
+    period_callback,
+    transaction_callback,
+    transactions_callback,
+)
 from src.bot.handlers.menu import start_command
 from src.bot.handlers.text import text_message_handler
 from src.bot.handlers.voice import voice_message_handler
-from src.bot.handlers.callbacks import (
-    menu_callback,
-    period_callback,
-    transactions_callback,
-    backup_callback,
-    transaction_callback,
-    edit_callback,
-    category_callback,
-    health_callback,
-    charts_callback,
-)
-
-from src.utils.logging_config import setup_logging
+from src.config import ALLOWED_USER_IDS, TELEGRAM_BOT_TOKEN
 from src.services.metrics import get_metrics
 from src.services.resource_monitor import get_resource_monitor
-from src.services.throttle import get_throttle_manager
+from src.utils.logging_config import setup_logging
 
 setup_logging()
 logger = logging.getLogger(__name__)
@@ -92,6 +97,7 @@ async def post_init(app: Application) -> None:
 
     try:
         from src.services.sheets_async import async_init_spreadsheet
+
         await async_init_spreadsheet()
         logger.info("Spreadsheet structure initialized")
     except Exception as e:
@@ -110,9 +116,9 @@ async def post_shutdown(app: Application) -> None:
         resource_monitor = get_resource_monitor()
         await resource_monitor.stop_monitoring()
 
-        from src.services.speech import close_speech_session
         from src.services.ai_analyzer import close_gpt_session
         from src.services.sheets_async import shutdown_executor
+        from src.services.speech import close_speech_session
 
         await close_speech_session()
         await close_gpt_session()
@@ -163,7 +169,8 @@ def main():
     _application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, text_message_handler))
 
     try:
-        from src.services.scheduler import start_scheduler, set_report_callback
+        from src.services.scheduler import set_report_callback, start_scheduler
+
         set_report_callback(send_report_to_users)
         start_scheduler()
         logger.info("Scheduler initialized")

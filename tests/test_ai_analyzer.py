@@ -1,15 +1,16 @@
-import pytest
 import json
-from unittest.mock import patch, AsyncMock, MagicMock
+from unittest.mock import AsyncMock, patch
 
+import pytest
+
+from src.models.category import TransactionType
 from src.services.ai_analyzer import (
     fallback_categorize,
     format_categories_for_prompt,
-    generate_fallback_report,
     generate_fallback_period_report,
+    generate_fallback_report,
     parse_transactions,
 )
-from src.models.category import TransactionType
 
 
 class TestFallbackCategorize:
@@ -119,7 +120,11 @@ class TestGenerateFallbackReport:
 
 class TestGenerateFallbackPeriodReport:
     def test_basic(self):
-        summary = {"income": 100000, "expenses": 45000, "by_category": {"Еда": 15000, "Такси": 8000}}
+        summary = {
+            "income": 100000,
+            "expenses": 45000,
+            "by_category": {"Еда": 15000, "Такси": 8000},
+        }
         result = generate_fallback_period_report(summary, "Январь 2025")
         assert "ЯНВАРЬ 2025" in result
         assert "ДОХОДЫ" in result
@@ -130,21 +135,29 @@ class TestGenerateFallbackPeriodReport:
         assert "Нет расходов" in result
 
     def test_categories_sorted_by_amount(self):
-        summary = {"income": 0, "expenses": 25000, "by_category": {"Такси": 5000, "Еда": 15000, "Кино": 5000}}
+        summary = {
+            "income": 0,
+            "expenses": 25000,
+            "by_category": {"Такси": 5000, "Еда": 15000, "Кино": 5000},
+        }
         result = generate_fallback_period_report(summary, "Тест")
         lines = result.split("\n")
-        cat_lines = [l for l in lines if l.startswith("- ")]
+        cat_lines = [line for line in lines if line.startswith("- ")]
         assert "Еда" in cat_lines[0]
 
 
 class TestParseTransactions:
     @pytest.mark.asyncio
     async def test_valid_json_response(self):
-        mock_response = json.dumps([
-            {"type": "expense", "category": "Такси", "description": "До работы", "amount": 500}
-        ])
+        mock_response = json.dumps(
+            [{"type": "expense", "category": "Такси", "description": "До работы", "amount": 500}]
+        )
 
-        with patch("src.services.ai_analyzer.call_yandex_gpt", new_callable=AsyncMock, return_value=mock_response):
+        with patch(
+            "src.services.ai_analyzer.call_yandex_gpt",
+            new_callable=AsyncMock,
+            return_value=mock_response,
+        ):
             with patch("src.services.ai_analyzer.YANDEX_GPT_API_KEY", "test"):
                 with patch("src.services.ai_analyzer.YANDEX_GPT_FOLDER_ID", "test"):
                     result = await parse_transactions("такси 500")
@@ -158,7 +171,11 @@ class TestParseTransactions:
     async def test_markdown_wrapped_json(self):
         mock_response = '```json\n[{"type": "expense", "category": "Еда", "description": "Обед", "amount": 400}]\n```'
 
-        with patch("src.services.ai_analyzer.call_yandex_gpt", new_callable=AsyncMock, return_value=mock_response):
+        with patch(
+            "src.services.ai_analyzer.call_yandex_gpt",
+            new_callable=AsyncMock,
+            return_value=mock_response,
+        ):
             with patch("src.services.ai_analyzer.YANDEX_GPT_API_KEY", "test"):
                 with patch("src.services.ai_analyzer.YANDEX_GPT_FOLDER_ID", "test"):
                     result = await parse_transactions("обед 400")
@@ -172,7 +189,11 @@ class TestParseTransactions:
             {"type": "expense", "category": "Такси", "description": "Такси", "amount": 300}
         )
 
-        with patch("src.services.ai_analyzer.call_yandex_gpt", new_callable=AsyncMock, return_value=mock_response):
+        with patch(
+            "src.services.ai_analyzer.call_yandex_gpt",
+            new_callable=AsyncMock,
+            return_value=mock_response,
+        ):
             with patch("src.services.ai_analyzer.YANDEX_GPT_API_KEY", "test"):
                 with patch("src.services.ai_analyzer.YANDEX_GPT_FOLDER_ID", "test"):
                     result = await parse_transactions("такси 300")
@@ -182,7 +203,11 @@ class TestParseTransactions:
 
     @pytest.mark.asyncio
     async def test_invalid_json_returns_none(self):
-        with patch("src.services.ai_analyzer.call_yandex_gpt", new_callable=AsyncMock, return_value="not json at all"):
+        with patch(
+            "src.services.ai_analyzer.call_yandex_gpt",
+            new_callable=AsyncMock,
+            return_value="not json at all",
+        ):
             with patch("src.services.ai_analyzer.YANDEX_GPT_API_KEY", "test"):
                 with patch("src.services.ai_analyzer.YANDEX_GPT_FOLDER_ID", "test"):
                     result = await parse_transactions("что-то")
@@ -191,12 +216,18 @@ class TestParseTransactions:
 
     @pytest.mark.asyncio
     async def test_multiple_transactions(self):
-        mock_response = json.dumps([
-            {"type": "expense", "category": "Такси", "description": "Такси", "amount": 500},
-            {"type": "expense", "category": "Еда", "description": "Кофе", "amount": 200},
-        ])
+        mock_response = json.dumps(
+            [
+                {"type": "expense", "category": "Такси", "description": "Такси", "amount": 500},
+                {"type": "expense", "category": "Еда", "description": "Кофе", "amount": 200},
+            ]
+        )
 
-        with patch("src.services.ai_analyzer.call_yandex_gpt", new_callable=AsyncMock, return_value=mock_response):
+        with patch(
+            "src.services.ai_analyzer.call_yandex_gpt",
+            new_callable=AsyncMock,
+            return_value=mock_response,
+        ):
             with patch("src.services.ai_analyzer.YANDEX_GPT_API_KEY", "test"):
                 with patch("src.services.ai_analyzer.YANDEX_GPT_FOLDER_ID", "test"):
                     result = await parse_transactions("такси 500 кофе 200")

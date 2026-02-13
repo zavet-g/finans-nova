@@ -1,11 +1,11 @@
-import logging
-import json
 import asyncio
+import json
+import logging
+
 import aiohttp
-from typing import Optional
 
 from src.config import YANDEX_GPT_API_KEY, YANDEX_GPT_FOLDER_ID
-from src.models.category import TransactionType, EXPENSE_CATEGORIES, INCOME_CATEGORY
+from src.models.category import EXPENSE_CATEGORIES, INCOME_CATEGORY, TransactionType
 from src.utils.metrics_decorator import track_service_call
 
 logger = logging.getLogger(__name__)
@@ -19,22 +19,16 @@ _gpt_session: aiohttp.ClientSession | None = None
 async def get_gpt_session() -> aiohttp.ClientSession:
     global _gpt_session
     if _gpt_session is None or _gpt_session.closed:
-        timeout = aiohttp.ClientTimeout(
-            total=120,
-            connect=30,
-            sock_read=60
-        )
+        timeout = aiohttp.ClientTimeout(total=120, connect=30, sock_read=60)
         connector = aiohttp.TCPConnector(
             limit=10,
             limit_per_host=5,
             ttl_dns_cache=300,
             force_close=False,
-            enable_cleanup_closed=True
+            enable_cleanup_closed=True,
         )
         _gpt_session = aiohttp.ClientSession(
-            timeout=timeout,
-            connector=connector,
-            raise_for_status=False
+            timeout=timeout, connector=connector, raise_for_status=False
         )
         logger.info("YandexGPT session created")
     return _gpt_session
@@ -93,12 +87,14 @@ async def parse_transactions(text: str) -> list[dict] | None:
 
         transactions = []
         for item in data:
-            transactions.append({
-                "type": TransactionType(item["type"]),
-                "category": item["category"],
-                "description": item["description"],
-                "amount": float(item["amount"]),
-            })
+            transactions.append(
+                {
+                    "type": TransactionType(item["type"]),
+                    "category": item["category"],
+                    "description": item["description"],
+                    "amount": float(item["amount"]),
+                }
+            )
         return transactions if transactions else None
     except Exception as e:
         logger.error(f"YandexGPT parse failed: {e}")
@@ -157,19 +153,19 @@ async def generate_monthly_report(
 и даёт честные, объективные рекомендации. Без лишних слов.
 
 СВОДКА ЗА ТЕКУЩИЙ МЕСЯЦ ({month_name} {year}):
-Доходы: {summary.get('income', 0)} руб.
-Расходы: {summary.get('expenses', 0)} руб.
-Баланс месяца: {summary.get('balance', 0)} руб.
+Доходы: {summary.get("income", 0)} руб.
+Расходы: {summary.get("expenses", 0)} руб.
+Баланс месяца: {summary.get("balance", 0)} руб.
 
 Расходы по категориям:
-{format_categories_for_prompt(summary.get('by_category', {}))}
+{format_categories_for_prompt(summary.get("by_category", {}))}
 
 СВОДКА ЗА ПРОШЛЫЙ МЕСЯЦ:
-Доходы: {previous_summary.get('income', 0)} руб.
-Расходы: {previous_summary.get('expenses', 0)} руб.
+Доходы: {previous_summary.get("income", 0)} руб.
+Расходы: {previous_summary.get("expenses", 0)} руб.
 
 Расходы по категориям:
-{format_categories_for_prompt(previous_summary.get('by_category', {}))}
+{format_categories_for_prompt(previous_summary.get("by_category", {}))}
 
 ДЕТАЛЬНЫЕ ТРАНЗАКЦИИ:
 {transactions_markdown}
@@ -205,9 +201,7 @@ async def call_yandex_gpt(prompt: str, temperature: float = 0.3) -> str:
             "temperature": temperature,
             "maxTokens": 2000,
         },
-        "messages": [
-            {"role": "user", "text": prompt}
-        ],
+        "messages": [{"role": "user", "text": prompt}],
     }
 
     session = await get_gpt_session()
@@ -227,7 +221,7 @@ async def call_yandex_gpt(prompt: str, temperature: float = 0.3) -> str:
             last_error = e
             logger.warning(f"YandexGPT attempt {attempt} failed: {e}")
             if attempt < MAX_RETRIES:
-                await asyncio.sleep(2 ** attempt)
+                await asyncio.sleep(2**attempt)
 
     raise RuntimeError(f"YandexGPT failed after {MAX_RETRIES} attempts: {last_error}")
 
@@ -309,9 +303,9 @@ def _build_enriched_prompt(data: dict, period_name: str) -> str:
             weekend_note = f", выходные: {cat['weekend_amount']} руб"
 
         categories_text += f"""
-- {cat['name']}: {cat['amount']} руб ({cat['percent']}%)
-  Транзакций: {cat['transaction_count']}, средняя: {cat['avg_transaction']} руб{trend_str}{weekend_note}
-  Макс: {cat['max_transaction']['amount']} руб ({cat['max_transaction']['description']})"""
+- {cat["name"]}: {cat["amount"]} руб ({cat["percent"]}%)
+  Транзакций: {cat["transaction_count"]}, средняя: {cat["avg_transaction"]} руб{trend_str}{weekend_note}
+  Макс: {cat["max_transaction"]["amount"]} руб ({cat["max_transaction"]["description"]})"""
 
     anomalies_text = ""
     if patterns.get("anomalies"):
@@ -331,14 +325,14 @@ def _build_enriched_prompt(data: dict, period_name: str) -> str:
         time_patterns_text = f"""
 
 ВРЕМЕННЫЕ ПАТТЕРНЫ:
-- Самый затратный день: {tp.get('most_expensive_day', 'н/д')} ({tp.get('most_expensive_day_amount', 0)} руб)
-- Средние траты в будни: {tp.get('weekday_avg', 0)} руб/день
-- Средние траты в выходные: {tp.get('weekend_avg', 0)} руб/день"""
+- Самый затратный день: {tp.get("most_expensive_day", "н/д")} ({tp.get("most_expensive_day_amount", 0)} руб)
+- Средние траты в будни: {tp.get("weekday_avg", 0)} руб/день
+- Средние траты в выходные: {tp.get("weekend_avg", 0)} руб/день"""
 
     comparison_text = ""
     if comparison:
-        expenses_change = comparison.get('expenses_change')
-        prev_expenses = comparison.get('prev_expenses', 0)
+        expenses_change = comparison.get("expenses_change")
+        prev_expenses = comparison.get("prev_expenses", 0)
 
         if expenses_change is not None:
             comparison_text = f"""
@@ -351,7 +345,7 @@ def _build_enriched_prompt(data: dict, period_name: str) -> str:
         if comparison.get("growing_categories"):
             comparison_text += "\n- Выросли:"
             for g in comparison["growing_categories"]:
-                change_str = f"+{g['change']}%" if g.get('change') else "(новая)"
+                change_str = f"+{g['change']}%" if g.get("change") else "(новая)"
                 comparison_text += f" {g['category']} {change_str},"
         if comparison.get("shrinking_categories"):
             comparison_text += "\n- Снизились:"
@@ -363,9 +357,9 @@ def _build_enriched_prompt(data: dict, period_name: str) -> str:
 ПЕРИОД: {period_name.upper()}
 
 ИТОГИ:
-- Доходы: {totals.get('income', 0)} руб
-- Расходы: {totals.get('expenses', 0)} руб ({totals.get('savings_rate', 0)}% сохранено)
-- Всего транзакций: {totals.get('transaction_count', 0)}
+- Доходы: {totals.get("income", 0)} руб
+- Расходы: {totals.get("expenses", 0)} руб ({totals.get("savings_rate", 0)}% сохранено)
+- Всего транзакций: {totals.get("transaction_count", 0)}
 
 КАТЕГОРИИ:{categories_text}{anomalies_text}{top_spending_text}{time_patterns_text}{comparison_text}
 
@@ -401,12 +395,12 @@ def _build_simple_prompt(summary: dict, transactions_markdown: str, period_name:
 и даёт честные, объективные рекомендации. Без лишних слов.
 
 СВОДКА ЗА {period_name.upper()}:
-Доходы: {summary.get('income', 0)} руб.
-Расходы: {summary.get('expenses', 0)} руб.
-Баланс периода: {summary.get('balance', 0)} руб.
+Доходы: {summary.get("income", 0)} руб.
+Расходы: {summary.get("expenses", 0)} руб.
+Баланс периода: {summary.get("balance", 0)} руб.
 
 Расходы по категориям:
-{format_categories_for_prompt(summary.get('by_category', {}))}
+{format_categories_for_prompt(summary.get("by_category", {}))}
 
 ДЕТАЛЬНЫЕ ТРАНЗАКЦИИ:
 {transactions_markdown}
@@ -446,7 +440,9 @@ def generate_fallback_period_report(summary: dict, period_name: str) -> str:
     return report
 
 
-def generate_fallback_report(summary: dict, previous_summary: dict, month_name: str, year: int) -> str:
+def generate_fallback_report(
+    summary: dict, previous_summary: dict, month_name: str, year: int
+) -> str:
     """Генерирует простой отчёт без AI."""
     income = summary.get("income", 0)
     expenses = summary.get("expenses", 0)

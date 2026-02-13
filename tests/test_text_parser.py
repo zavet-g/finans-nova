@@ -1,10 +1,9 @@
-import pytest
 from src.bot.handlers.text import (
-    parse_amount_from_part,
-    parse_amount,
-    parse_multiple_transactions,
-    determine_type_and_category,
     clean_description,
+    determine_type_and_category,
+    parse_amount,
+    parse_amount_from_part,
+    parse_multiple_transactions,
 )
 from src.models.category import TransactionType
 

@@ -1,17 +1,17 @@
-import pytest
 from datetime import datetime
+
+import pytest
 from pydantic import ValidationError
 
-from src.models.transaction import Transaction
 from src.models.category import (
-    TransactionType,
-    Category,
+    ALL_CATEGORIES,
     EXPENSE_CATEGORIES,
     INCOME_CATEGORY,
-    ALL_CATEGORIES,
-    get_category_by_code,
+    TransactionType,
     get_categories_by_type,
+    get_category_by_code,
 )
+from src.models.transaction import Transaction
 
 
 class TestTransaction:

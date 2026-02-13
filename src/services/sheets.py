@@ -7,9 +7,9 @@ from typing import Optional
 import gspread
 from google.oauth2.service_account import Credentials
 
-from src.config import GOOGLE_SHEETS_CREDENTIALS_FILE, GOOGLE_SHEETS_SPREADSHEET_ID, BASE_DIR
-from src.models.transaction import Transaction
+from src.config import BASE_DIR, GOOGLE_SHEETS_CREDENTIALS_FILE, GOOGLE_SHEETS_SPREADSHEET_ID
 from src.models.category import TransactionType
+from src.models.transaction import Transaction
 from src.services.metrics import get_metrics
 
 logger = logging.getLogger(__name__)
@@ -67,7 +67,9 @@ def init_spreadsheet():
     logger.info("Spreadsheet initialized")
 
 
-def _get_or_create_sheet(spreadsheet: gspread.Spreadsheet, name: str, rows: int = 1000, cols: int = 20) -> gspread.Worksheet:
+def _get_or_create_sheet(
+    spreadsheet: gspread.Spreadsheet, name: str, rows: int = 1000, cols: int = 20
+) -> gspread.Worksheet:
     """Получает или создаёт лист."""
     try:
         return spreadsheet.worksheet(name)
@@ -81,18 +83,23 @@ def _init_transactions_sheet(spreadsheet: gspread.Spreadsheet):
 
     existing = sheet.get_all_values()
     if len(existing) == 0:
-        sheet.update(values=[TRANSACTIONS_HEADERS], range_name="A1:G1", value_input_option="USER_ENTERED")
+        sheet.update(
+            values=[TRANSACTIONS_HEADERS], range_name="A1:G1", value_input_option="USER_ENTERED"
+        )
 
-        sheet.format("A1:G1", {
-            "backgroundColor": {"red": 0.35, "green": 0.45, "blue": 0.55},
-            "textFormat": {
-                "bold": True,
-                "foregroundColor": {"red": 1, "green": 1, "blue": 1},
-                "fontSize": 10
+        sheet.format(
+            "A1:G1",
+            {
+                "backgroundColor": {"red": 0.35, "green": 0.45, "blue": 0.55},
+                "textFormat": {
+                    "bold": True,
+                    "foregroundColor": {"red": 1, "green": 1, "blue": 1},
+                    "fontSize": 10,
+                },
+                "horizontalAlignment": "CENTER",
+                "verticalAlignment": "MIDDLE",
             },
-            "horizontalAlignment": "CENTER",
-            "verticalAlignment": "MIDDLE"
-        })
+        )
 
         sheet.set_basic_filter()
         sheet.freeze(rows=1)
@@ -108,7 +115,18 @@ def _init_summary_sheet(spreadsheet: gspread.Spreadsheet):
 
     existing = sheet.get_all_values()
     if len(existing) <= 1:
-        categories = ["Еда", "Жильё и быт", "Такси", "Здоровье", "Развлечения", "Одежда", "Подписки", "Подарки", "Дом", "Прочее"]
+        categories = [
+            "Еда",
+            "Жильё и быт",
+            "Такси",
+            "Здоровье",
+            "Развлечения",
+            "Одежда",
+            "Подписки",
+            "Подарки",
+            "Дом",
+            "Прочее",
+        ]
 
         month_start = 'TEXT(EOMONTH(TODAY();-1)+1;"YYYY-MM-DD")'
         month_end = 'TEXT(EOMONTH(TODAY();0);"YYYY-MM-DD")'
@@ -118,11 +136,20 @@ def _init_summary_sheet(spreadsheet: gspread.Spreadsheet):
             ["Начальный баланс", 0],
             ["", ""],
             ["БАЛАНС", ""],
-            ["Текущий баланс", '=IFERROR(INDEX(FILTER(Транзакции!G:G; Транзакции!G:G<>""; Транзакции!G:G<>"Баланс"); COUNTA(FILTER(Транзакции!G:G; Транзакции!G:G<>""; Транзакции!G:G<>"Баланс"))); 0)'],
+            [
+                "Текущий баланс",
+                '=IFERROR(INDEX(FILTER(Транзакции!G:G; Транзакции!G:G<>""; Транзакции!G:G<>"Баланс"); COUNTA(FILTER(Транзакции!G:G; Транзакции!G:G<>""; Транзакции!G:G<>"Баланс"))); 0)',
+            ],
             ["", ""],
             ["ТЕКУЩИЙ МЕСЯЦ", ""],
-            ["Доходы", f'=SUMIFS(Транзакции!F:F; Транзакции!C:C; "доход"; Транзакции!A:A; ">="&{month_start}; Транзакции!A:A; "<="&{month_end})'],
-            ["Расходы", f'=SUMIFS(Транзакции!F:F; Транзакции!C:C; "расход"; Транзакции!A:A; ">="&{month_start}; Транзакции!A:A; "<="&{month_end})'],
+            [
+                "Доходы",
+                f'=SUMIFS(Транзакции!F:F; Транзакции!C:C; "доход"; Транзакции!A:A; ">="&{month_start}; Транзакции!A:A; "<="&{month_end})',
+            ],
+            [
+                "Расходы",
+                f'=SUMIFS(Транзакции!F:F; Транзакции!C:C; "расход"; Транзакции!A:A; ">="&{month_start}; Транзакции!A:A; "<="&{month_end})',
+            ],
             ["Баланс месяца", "=B8-B9"],
             ["", ""],
             ["РАСХОДЫ ПО КАТЕГОРИЯМ", "Сумма"],
@@ -135,40 +162,48 @@ def _init_summary_sheet(spreadsheet: gspread.Spreadsheet):
             row_num += 1
 
         summary_data.append(["", ""])
-        summary_data.append(["ИТОГО расходы", f"=SUM(B13:B{row_num-1})"])
+        summary_data.append(["ИТОГО расходы", f"=SUM(B13:B{row_num - 1})"])
 
-        sheet.update(values=summary_data, range_name=f"A1:B{len(summary_data)}", value_input_option="USER_ENTERED")
+        sheet.update(
+            values=summary_data,
+            range_name=f"A1:B{len(summary_data)}",
+            value_input_option="USER_ENTERED",
+        )
 
         dark_header = {
             "backgroundColor": {"red": 0.35, "green": 0.45, "blue": 0.55},
-            "textFormat": {"bold": True, "foregroundColor": {"red": 1, "green": 1, "blue": 1}, "fontSize": 10},
-            "borders": _get_borders()
+            "textFormat": {
+                "bold": True,
+                "foregroundColor": {"red": 1, "green": 1, "blue": 1},
+                "fontSize": 10,
+            },
+            "borders": _get_borders(),
         }
 
         light_header = {
             "backgroundColor": {"red": 0.93, "green": 0.93, "blue": 0.93},
             "textFormat": {"bold": True, "fontSize": 10},
-            "borders": _get_borders()
+            "borders": _get_borders(),
         }
 
         green_cell = {
             "backgroundColor": {"red": 0.93, "green": 0.97, "blue": 0.93},
-            "borders": _get_borders()
+            "borders": _get_borders(),
         }
 
         warm_cell = {
             "backgroundColor": {"red": 0.97, "green": 0.95, "blue": 0.93},
-            "borders": _get_borders()
+            "borders": _get_borders(),
         }
 
         blue_cell = {
             "backgroundColor": {"red": 0.93, "green": 0.95, "blue": 0.97},
-            "borders": _get_borders()
+            "borders": _get_borders(),
         }
 
         normal_cell = {
             "backgroundColor": {"red": 1, "green": 1, "blue": 1},
-            "borders": _get_borders()
+            "borders": _get_borders(),
         }
 
         sheet.format("A1:B1", dark_header)
@@ -187,11 +222,14 @@ def _init_summary_sheet(spreadsheet: gspread.Spreadsheet):
         for i in range(13, row_num):
             sheet.format(f"A{i}:B{i}", normal_cell)
 
-        sheet.format(f"A{row_num+1}:B{row_num+1}", {
-            "backgroundColor": {"red": 0.95, "green": 0.95, "blue": 0.95},
-            "textFormat": {"bold": True},
-            "borders": _get_borders()
-        })
+        sheet.format(
+            f"A{row_num + 1}:B{row_num + 1}",
+            {
+                "backgroundColor": {"red": 0.95, "green": 0.95, "blue": 0.95},
+                "textFormat": {"bold": True},
+                "borders": _get_borders(),
+            },
+        )
 
         sheet.format("B2:B30", {"numberFormat": {"type": "NUMBER", "pattern": "#,##0"}})
 
@@ -207,7 +245,7 @@ def _get_borders():
         "top": border_style,
         "bottom": border_style,
         "left": border_style,
-        "right": border_style
+        "right": border_style,
     }
 
 
@@ -232,7 +270,7 @@ def add_transaction(transaction: Transaction) -> int:
         if row_num == 2:
             balance_formula = f'=Сводка!$B$2 + IF(C{row_num}="доход"; F{row_num}; -F{row_num})'
         else:
-            balance_formula = f'=IF(F{row_num}=""; ""; G{row_num-1} + IF(C{row_num}="доход"; F{row_num}; -F{row_num}))'
+            balance_formula = f'=IF(F{row_num}=""; ""; G{row_num - 1} + IF(C{row_num}="доход"; F{row_num}; -F{row_num}))'
 
         row = [
             date_str,
@@ -271,19 +309,19 @@ def get_last_balance() -> float:
         if len(all_values) <= 1:
             summary = spreadsheet.worksheet("Сводка")
             value = summary.acell("B5").value
-            return float(value.replace(' ', '').replace(',', '.')) if value else 0
+            return float(value.replace(" ", "").replace(",", ".")) if value else 0
 
         for row in reversed(all_values[1:]):
             if len(row) >= 7 and row[6] and row[6].strip():
                 try:
-                    balance = float(row[6].replace(' ', '').replace(',', '.'))
+                    balance = float(row[6].replace(" ", "").replace(",", "."))
                     return balance
                 except ValueError:
                     continue
 
         summary = spreadsheet.worksheet("Сводка")
         value = summary.acell("B5").value
-        return float(value.replace(' ', '').replace(',', '.')) if value else 0
+        return float(value.replace(" ", "").replace(",", ".")) if value else 0
 
     except Exception as e:
         logger.error(f"Ошибка получения баланса: {e}")
@@ -310,7 +348,7 @@ def get_transactions(limit: int = 10, offset: int = 0) -> list[dict]:
     data.reverse()
 
     result = []
-    for row in data[offset:offset + limit]:
+    for row in data[offset : offset + limit]:
         tx = dict(zip(headers, row))
         result.append(tx)
 
@@ -400,13 +438,15 @@ def get_period_summary(start_date: datetime, end_date: datetime) -> dict:
                 expenses += amount
                 by_category[category] = by_category.get(category, 0) + amount
 
-            transactions.append({
-                "date": date_str,
-                "type": tx_type,
-                "category": category,
-                "description": description,
-                "amount": amount,
-            })
+            transactions.append(
+                {
+                    "date": date_str,
+                    "type": tx_type,
+                    "category": category,
+                    "description": description,
+                    "amount": amount,
+                }
+            )
 
         except (ValueError, IndexError):
             continue
@@ -438,13 +478,15 @@ def get_month_transactions_markdown(year: int, month: int, limit: int = 100) -> 
             if not date_str.startswith(month_str):
                 continue
 
-            transactions.append({
-                "date": row[0],
-                "type": row[2],
-                "category": row[3],
-                "description": row[4],
-                "amount": row[5],
-            })
+            transactions.append(
+                {
+                    "date": row[0],
+                    "type": row[2],
+                    "category": row[3],
+                    "description": row[4],
+                    "amount": row[5],
+                }
+            )
 
             if len(transactions) >= limit:
                 break
@@ -458,16 +500,18 @@ def get_month_transactions_markdown(year: int, month: int, limit: int = 100) -> 
     result = []
     for i, tx in enumerate(transactions, 1):
         result.append(f"""Транзакция {i}:
-дата: {tx['date']}
-тип: {tx['type']}
-категория: {tx['category']}
-описание: {tx['description']}
-сумма: {tx['amount']}""")
+дата: {tx["date"]}
+тип: {tx["type"]}
+категория: {tx["category"]}
+описание: {tx["description"]}
+сумма: {tx["amount"]}""")
 
     return "\n---\n".join(result)
 
 
-def get_period_transactions_markdown(start_date: datetime, end_date: datetime, limit: int = 100) -> str:
+def get_period_transactions_markdown(
+    start_date: datetime, end_date: datetime, limit: int = 100
+) -> str:
     """Возвращает транзакции за период в Markdown-KV формате для AI."""
     data = get_period_summary(start_date, end_date)
     transactions = data.get("transactions", [])[:limit]
@@ -478,11 +522,11 @@ def get_period_transactions_markdown(start_date: datetime, end_date: datetime, l
     result = []
     for i, tx in enumerate(transactions, 1):
         result.append(f"""Транзакция {i}:
-дата: {tx['date']}
-тип: {tx['type']}
-категория: {tx['category']}
-описание: {tx['description']}
-сумма: {tx['amount']}""")
+дата: {tx["date"]}
+тип: {tx["type"]}
+категория: {tx["category"]}
+описание: {tx["description"]}
+сумма: {tx["amount"]}""")
 
     return "\n---\n".join(result)
 
@@ -535,7 +579,6 @@ def get_yearly_monthly_breakdown(year: int) -> dict:
     return {"income": income, "expenses": expenses}
 
 
-
 def create_backup() -> str:
     """Создаёт резервную копию таблицы."""
     spreadsheet = get_spreadsheet()
@@ -568,7 +611,9 @@ def export_to_csv() -> str:
     return "\n".join(lines)
 
 
-def get_enriched_analytics(start_date: datetime, end_date: datetime, prev_start: datetime = None, prev_end: datetime = None) -> dict:
+def get_enriched_analytics(
+    start_date: datetime, end_date: datetime, prev_start: datetime = None, prev_end: datetime = None
+) -> dict:
     """Возвращает обогащённые данные для AI-анализа."""
     summary = get_period_summary(start_date, end_date)
     transactions = summary.get("transactions", [])
@@ -582,10 +627,19 @@ def get_enriched_analytics(start_date: datetime, end_date: datetime, prev_start:
             "income": summary.get("income", 0),
             "expenses": summary.get("expenses", 0),
             "balance": summary.get("balance", 0),
-            "savings_rate": round((summary.get("income", 0) - summary.get("expenses", 0)) / summary.get("income", 1) * 100, 1) if summary.get("income", 0) > 0 else 0,
+            "savings_rate": round(
+                (summary.get("income", 0) - summary.get("expenses", 0))
+                / summary.get("income", 1)
+                * 100,
+                1,
+            )
+            if summary.get("income", 0) > 0
+            else 0,
             "transaction_count": len(transactions),
         },
-        "categories": _analyze_categories(transactions, summary.get("by_category", {}), prev_summary),
+        "categories": _analyze_categories(
+            transactions, summary.get("by_category", {}), prev_summary
+        ),
         "patterns": _analyze_patterns(transactions),
         "comparison": _analyze_comparison(summary, prev_summary) if prev_summary else None,
     }
@@ -600,7 +654,9 @@ def _analyze_categories(transactions: list, by_category: dict, prev_summary: dic
 
     categories = []
     for cat_name, amount in sorted(by_category.items(), key=lambda x: x[1], reverse=True):
-        cat_transactions = [t for t in transactions if t.get("category") == cat_name and t.get("type") == "расход"]
+        cat_transactions = [
+            t for t in transactions if t.get("category") == cat_name and t.get("type") == "расход"
+        ]
 
         if not cat_transactions:
             continue
@@ -623,20 +679,22 @@ def _analyze_categories(transactions: list, by_category: dict, prev_summary: dic
         prev_amount = prev_by_category.get(cat_name, 0)
         trend = round((amount - prev_amount) / prev_amount * 100, 1) if prev_amount > 0 else None
 
-        categories.append({
-            "name": cat_name,
-            "amount": amount,
-            "percent": round(amount / total_expenses * 100, 1),
-            "transaction_count": len(cat_transactions),
-            "avg_transaction": round(sum(amounts) / len(amounts)) if amounts else 0,
-            "max_transaction": {
-                "amount": max_tx.get("amount", 0),
-                "description": max_tx.get("description", "")
-            },
-            "trend_vs_prev_period": trend,
-            "weekday_amount": weekday_amount,
-            "weekend_amount": weekend_amount,
-        })
+        categories.append(
+            {
+                "name": cat_name,
+                "amount": amount,
+                "percent": round(amount / total_expenses * 100, 1),
+                "transaction_count": len(cat_transactions),
+                "avg_transaction": round(sum(amounts) / len(amounts)) if amounts else 0,
+                "max_transaction": {
+                    "amount": max_tx.get("amount", 0),
+                    "description": max_tx.get("description", ""),
+                },
+                "trend_vs_prev_period": trend,
+                "weekday_amount": weekday_amount,
+                "weekend_amount": weekend_amount,
+            }
+        )
 
     return categories
 
@@ -650,20 +708,26 @@ def _analyze_patterns(transactions: list) -> dict:
 
     amounts = [t.get("amount", 0) for t in expense_transactions]
     avg_amount = sum(amounts) / len(amounts) if amounts else 0
-    std_amount = (sum((a - avg_amount) ** 2 for a in amounts) / len(amounts)) ** 0.5 if len(amounts) > 1 else 0
+    std_amount = (
+        (sum((a - avg_amount) ** 2 for a in amounts) / len(amounts)) ** 0.5
+        if len(amounts) > 1
+        else 0
+    )
     threshold = avg_amount + 2 * std_amount
 
     anomalies = []
     for t in expense_transactions:
         amount = t.get("amount", 0)
         if amount > threshold and amount > avg_amount * 3:
-            anomalies.append({
-                "date": t.get("date"),
-                "category": t.get("category"),
-                "description": t.get("description"),
-                "amount": amount,
-                "times_avg": round(amount / avg_amount, 1) if avg_amount > 0 else 0,
-            })
+            anomalies.append(
+                {
+                    "date": t.get("date"),
+                    "category": t.get("category"),
+                    "description": t.get("description"),
+                    "amount": amount,
+                    "times_avg": round(amount / avg_amount, 1) if avg_amount > 0 else 0,
+                }
+            )
     anomalies = sorted(anomalies, key=lambda x: x["amount"], reverse=True)[:5]
 
     description_totals = {}
@@ -678,14 +742,15 @@ def _analyze_patterns(transactions: list) -> dict:
 
     top_descriptions = []
     for desc, total in sorted(description_totals.items(), key=lambda x: x[1], reverse=True)[:5]:
-        top_descriptions.append({
-            "description": desc,
-            "total": total,
-            "count": description_counts.get(desc, 0),
-        })
+        top_descriptions.append(
+            {
+                "description": desc,
+                "total": total,
+                "count": description_counts.get(desc, 0),
+            }
+        )
 
     day_totals = {i: 0 for i in range(7)}
-    hour_totals = {}
     for t in expense_transactions:
         try:
             tx_date = datetime.strptime(t.get("date", ""), "%Y-%m-%d")
@@ -720,8 +785,14 @@ def _analyze_comparison(current: dict, previous: dict) -> dict:
     curr_income = current.get("income", 0)
     prev_income = previous.get("income", 0)
 
-    expenses_change = round((curr_expenses - prev_expenses) / prev_expenses * 100, 1) if prev_expenses > 0 else None
-    income_change = round((curr_income - prev_income) / prev_income * 100, 1) if prev_income > 0 else None
+    expenses_change = (
+        round((curr_expenses - prev_expenses) / prev_expenses * 100, 1)
+        if prev_expenses > 0
+        else None
+    )
+    income_change = (
+        round((curr_income - prev_income) / prev_income * 100, 1) if prev_income > 0 else None
+    )
 
     curr_by_cat = current.get("by_category", {})
     prev_by_cat = previous.get("by_category", {})
@@ -737,11 +808,23 @@ def _analyze_comparison(current: dict, previous: dict) -> dict:
         if prev_val > 0:
             change = round((curr_val - prev_val) / prev_val * 100, 1)
             if change > 20:
-                growing.append({"category": cat, "change": change, "current": curr_val, "previous": prev_val})
+                growing.append(
+                    {"category": cat, "change": change, "current": curr_val, "previous": prev_val}
+                )
             elif change < -20:
-                shrinking.append({"category": cat, "change": change, "current": curr_val, "previous": prev_val})
+                shrinking.append(
+                    {"category": cat, "change": change, "current": curr_val, "previous": prev_val}
+                )
         elif curr_val > 0:
-            growing.append({"category": cat, "change": None, "current": curr_val, "previous": 0, "note": "новая категория"})
+            growing.append(
+                {
+                    "category": cat,
+                    "change": None,
+                    "current": curr_val,
+                    "previous": 0,
+                    "note": "новая категория",
+                }
+            )
 
     growing = sorted(growing, key=lambda x: x.get("change") or 999, reverse=True)
     shrinking = sorted(shrinking, key=lambda x: x.get("change") or 0)
@@ -771,7 +854,16 @@ def reset_spreadsheet():
     """Удаляет все листы и пересоздаёт структуру с нуля."""
     spreadsheet = get_spreadsheet()
 
-    sheets_to_delete = ["Транзакции", "Сводка", "Графики", "Transactions", "Categories", "Dashboard", "Monthly", "Settings"]
+    sheets_to_delete = [
+        "Транзакции",
+        "Сводка",
+        "Графики",
+        "Transactions",
+        "Categories",
+        "Dashboard",
+        "Monthly",
+        "Settings",
+    ]
     for sheet_name in sheets_to_delete:
         try:
             sheet = spreadsheet.worksheet(sheet_name)

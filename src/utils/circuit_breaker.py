@@ -1,7 +1,7 @@
 import logging
 import time
 from enum import Enum
-from typing import Callable, Any
+from typing import Any, Callable
 
 logger = logging.getLogger(__name__)
 
@@ -17,7 +17,7 @@ class CircuitBreaker:
         self,
         failure_threshold: int = 5,
         recovery_timeout: int = 60,
-        expected_exception: type = Exception
+        expected_exception: type = Exception,
     ):
         self.failure_threshold = failure_threshold
         self.recovery_timeout = recovery_timeout
@@ -30,7 +30,7 @@ class CircuitBreaker:
         if self.state == CircuitState.OPEN:
             if time.time() - self.last_failure_time >= self.recovery_timeout:
                 self.state = CircuitState.HALF_OPEN
-                logger.info(f"Circuit breaker transitioning to HALF_OPEN state")
+                logger.info("Circuit breaker transitioning to HALF_OPEN state")
             else:
                 raise Exception("Circuit breaker is OPEN, request blocked")
 

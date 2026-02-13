@@ -1,7 +1,8 @@
-import logging
 import asyncio
-import aiohttp
+import logging
 from pathlib import Path
+
+import aiohttp
 
 from src.config import YANDEX_GPT_API_KEY, YANDEX_GPT_FOLDER_ID
 from src.utils.audio import convert_ogg_to_pcm
@@ -18,22 +19,16 @@ _speech_session: aiohttp.ClientSession | None = None
 async def get_speech_session() -> aiohttp.ClientSession:
     global _speech_session
     if _speech_session is None or _speech_session.closed:
-        timeout = aiohttp.ClientTimeout(
-            total=120,
-            connect=30,
-            sock_read=60
-        )
+        timeout = aiohttp.ClientTimeout(total=120, connect=30, sock_read=60)
         connector = aiohttp.TCPConnector(
             limit=10,
             limit_per_host=5,
             ttl_dns_cache=300,
             force_close=False,
-            enable_cleanup_closed=True
+            enable_cleanup_closed=True,
         )
         _speech_session = aiohttp.ClientSession(
-            timeout=timeout,
-            connector=connector,
-            raise_for_status=False
+            timeout=timeout, connector=connector, raise_for_status=False
         )
         logger.info("SpeechKit session created")
     return _speech_session
@@ -100,7 +95,7 @@ async def transcribe(audio_path: Path) -> str | None:
                 last_error = e
                 logger.warning(f"SpeechKit attempt {attempt} failed: {e}")
                 if attempt < MAX_RETRIES:
-                    await asyncio.sleep(2 ** attempt)
+                    await asyncio.sleep(2**attempt)
 
         logger.error(f"SpeechKit failed after {MAX_RETRIES} attempts: {last_error}")
         return None

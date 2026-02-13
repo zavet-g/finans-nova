@@ -1,8 +1,8 @@
-import pytest
-from unittest.mock import patch, MagicMock
-from datetime import datetime
+from unittest.mock import MagicMock, patch
 
-from src.services.metrics import ServiceStatus, RequestMetrics, MetricsCollector
+import pytest
+
+from src.services.metrics import MetricsCollector, RequestMetrics, ServiceStatus
 
 
 class TestServiceStatus:

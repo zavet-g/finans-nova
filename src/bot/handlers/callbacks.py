@@ -1,42 +1,59 @@
 import logging
 from datetime import datetime, timedelta
-from telegram import Update
-from telegram.ext import ContextTypes
-from telegram.error import TimedOut, BadRequest
 
+from telegram import Update
+from telegram.error import BadRequest, TimedOut
+from telegram.ext import ContextTypes
+
+from src.bot.handlers.menu import help_callback
 from src.bot.keyboards import (
-    main_menu_keyboard,
     analytics_period_keyboard,
     backup_keyboard,
-    transactions_list_keyboard,
+    categories_keyboard,
+    charts_menu_keyboard,
     confirm_transaction_keyboard,
     edit_transaction_keyboard,
-    categories_keyboard,
     health_keyboard,
-    charts_menu_keyboard,
+    main_menu_keyboard,
+    transactions_list_keyboard,
     yearly_charts_keyboard,
 )
-from src.bot.handlers.menu import help_callback
 from src.models.category import TransactionType, get_category_by_code
 
 logger = logging.getLogger(__name__)
 
 
-async def safe_reply(message, text: str = None, photo=None, document=None, filename=None, caption=None, reply_markup=None):
+async def safe_reply(
+    message,
+    text: str = None,
+    photo=None,
+    document=None,
+    filename=None,
+    caption=None,
+    reply_markup=None,
+):
     try:
         if photo:
-            return await message.reply_photo(photo=photo, caption=caption, reply_markup=reply_markup)
+            return await message.reply_photo(
+                photo=photo, caption=caption, reply_markup=reply_markup
+            )
         elif document:
-            return await message.reply_document(document=document, filename=filename, caption=caption, reply_markup=reply_markup)
+            return await message.reply_document(
+                document=document, filename=filename, caption=caption, reply_markup=reply_markup
+            )
         elif text:
             return await message.reply_text(text, reply_markup=reply_markup)
     except TimedOut:
         logger.warning("Reply timeout, retrying once...")
         try:
             if photo:
-                return await message.reply_photo(photo=photo, caption=caption, reply_markup=reply_markup)
+                return await message.reply_photo(
+                    photo=photo, caption=caption, reply_markup=reply_markup
+                )
             elif document:
-                return await message.reply_document(document=document, filename=filename, caption=caption, reply_markup=reply_markup)
+                return await message.reply_document(
+                    document=document, filename=filename, caption=caption, reply_markup=reply_markup
+                )
             elif text:
                 return await message.reply_text(text, reply_markup=reply_markup)
         except Exception as e:
@@ -162,10 +179,7 @@ async def show_analytics_menu(update: Update, context: ContextTypes.DEFAULT_TYPE
     query = update.callback_query
     await safe_answer_callback(query)
 
-    text = (
-        "АНАЛИТИКА\n\n"
-        "Выбери период для AI-анализа расходов:"
-    )
+    text = "АНАЛИТИКА\n\nВыбери период для AI-анализа расходов:"
 
     await safe_edit_message(query, text, reply_markup=analytics_period_keyboard())
 
@@ -174,7 +188,9 @@ async def show_charts(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     """Показывает подменю графиков."""
     query = update.callback_query
 
-    await safe_edit_message(query, "Выбери период для графиков:", reply_markup=charts_menu_keyboard())
+    await safe_edit_message(
+        query, "Выбери период для графиков:", reply_markup=charts_menu_keyboard()
+    )
 
 
 async def charts_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -185,20 +201,21 @@ async def charts_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     action = query.data.split(":")[1]
 
     if action == "back":
-        welcome_text = (
-            "Отправь голосовое или текстовое сообщение "
-            "с информацией о расходе/доходе."
-        )
+        welcome_text = "Отправь голосовое или текстовое сообщение с информацией о расходе/доходе."
         await safe_edit_message(query, welcome_text, reply_markup=main_menu_keyboard())
 
     elif action == "menu":
-        await safe_edit_message(query, "Выбери период для графиков:", reply_markup=charts_menu_keyboard())
+        await safe_edit_message(
+            query, "Выбери период для графиков:", reply_markup=charts_menu_keyboard()
+        )
 
     elif action == "current_month":
         await _generate_current_month_chart(query)
 
     elif action == "yearly":
-        await safe_edit_message(query, "Выбери тип годового графика:", reply_markup=yearly_charts_keyboard())
+        await safe_edit_message(
+            query, "Выбери тип годового графика:", reply_markup=yearly_charts_keyboard()
+        )
 
     elif action == "yearly_income":
         await _generate_yearly_chart(query, chart_type="income")
@@ -213,8 +230,9 @@ async def _generate_current_month_chart(query) -> None:
 
     try:
         import asyncio
-        from src.services.sheets_async import async_get_month_summary
+
         from src.services.charts import generate_monthly_summary_chart
+        from src.services.sheets_async import async_get_month_summary
         from src.utils.formatters import month_name
 
         now = datetime.now()
@@ -224,9 +242,9 @@ async def _generate_current_month_chart(query) -> None:
             await safe_reply(
                 query.message,
                 text="ГРАФИКИ\n\n"
-                     "Пока недостаточно данных для построения графиков.\n"
-                     "Добавь несколько транзакций.",
-                reply_markup=charts_menu_keyboard()
+                "Пока недостаточно данных для построения графиков.\n"
+                "Добавь несколько транзакций.",
+                reply_markup=charts_menu_keyboard(),
             )
             return
 
@@ -240,8 +258,8 @@ async def _generate_current_month_chart(query) -> None:
             query.message,
             photo=chart,
             caption=f"Финансовая сводка за {month_name(now.month)} {now.year}\n\n"
-                    f"Баланс месяца: {balance:,.0f} руб.".replace(",", " "),
-            reply_markup=charts_menu_keyboard()
+            f"Баланс месяца: {balance:,.0f} руб.".replace(",", " "),
+            reply_markup=charts_menu_keyboard(),
         )
 
     except Exception as e:
@@ -249,7 +267,7 @@ async def _generate_current_month_chart(query) -> None:
         await safe_reply(
             query.message,
             text=f"Не удалось построить графики.\nОшибка: {str(e)[:100]}",
-            reply_markup=charts_menu_keyboard()
+            reply_markup=charts_menu_keyboard(),
         )
 
 
@@ -261,8 +279,9 @@ async def _generate_yearly_chart(query, chart_type: str) -> None:
 
     try:
         import asyncio
+
+        from src.services.charts import generate_yearly_expense_chart, generate_yearly_income_chart
         from src.services.sheets_async import async_get_yearly_monthly_breakdown
-        from src.services.charts import generate_yearly_income_chart, generate_yearly_expense_chart
         from src.utils.formatters import format_amount
 
         now = datetime.now()
@@ -274,9 +293,8 @@ async def _generate_yearly_chart(query, chart_type: str) -> None:
         if total == 0:
             await safe_reply(
                 query.message,
-                text=f"ГРАФИК ЗА ГОД\n\n"
-                     f"Нет данных о {label} за {now.year} год.",
-                reply_markup=yearly_charts_keyboard()
+                text=f"ГРАФИК ЗА ГОД\n\nНет данных о {label} за {now.year} год.",
+                reply_markup=yearly_charts_keyboard(),
             )
             return
 
@@ -295,8 +313,8 @@ async def _generate_yearly_chart(query, chart_type: str) -> None:
             query.message,
             photo=chart,
             caption=f"{type_label} по месяцам за {now.year} год\n\n"
-                    f"Итого: {format_amount(total)} руб.",
-            reply_markup=yearly_charts_keyboard()
+            f"Итого: {format_amount(total)} руб.",
+            reply_markup=yearly_charts_keyboard(),
         )
 
     except Exception as e:
@@ -304,7 +322,7 @@ async def _generate_yearly_chart(query, chart_type: str) -> None:
         await safe_reply(
             query.message,
             text=f"Не удалось построить график.\nОшибка: {str(e)[:100]}",
-            reply_markup=yearly_charts_keyboard()
+            reply_markup=yearly_charts_keyboard(),
         )
 
 
@@ -328,6 +346,7 @@ async def open_sheets(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     await safe_answer_callback(query)
 
     from src.config import GOOGLE_SHEETS_SPREADSHEET_ID
+
     if GOOGLE_SHEETS_SPREADSHEET_ID:
         url = f"https://docs.google.com/spreadsheets/d/{GOOGLE_SHEETS_SPREADSHEET_ID}"
         text = f"Ссылка на таблицу:\n{url}"
@@ -345,10 +364,7 @@ async def period_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     action = query.data.split(":")[1]
 
     if action == "back":
-        welcome_text = (
-            "Отправь голосовое или текстовое сообщение "
-            "с информацией о расходе/доходе."
-        )
+        welcome_text = "Отправь голосовое или текстовое сообщение с информацией о расходе/доходе."
         await safe_edit_message(query, welcome_text, reply_markup=main_menu_keyboard())
         return
 
@@ -367,8 +383,7 @@ async def period_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
         if action not in period_config:
             await query.message.reply_text(
-                "Выбери период из списка.",
-                reply_markup=analytics_period_keyboard()
+                "Выбери период из списка.", reply_markup=analytics_period_keyboard()
             )
             return
 
@@ -379,24 +394,24 @@ async def period_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         prev_start = start_date - delta
         prev_end = start_date
 
-        from src.services.sheets_async import async_get_period_summary, async_get_enriched_analytics
-        from src.services.ai_analyzer import generate_period_report
         import asyncio
+
+        from src.services.ai_analyzer import generate_period_report
+        from src.services.sheets_async import async_get_enriched_analytics, async_get_period_summary
 
         summary, enriched_data = await asyncio.wait_for(
             asyncio.gather(
                 async_get_period_summary(start_date, end_date),
-                async_get_enriched_analytics(start_date, end_date, prev_start, prev_end)
+                async_get_enriched_analytics(start_date, end_date, prev_start, prev_end),
             ),
-            timeout=30.0
+            timeout=30.0,
         )
 
         if summary.get("expenses", 0) == 0 and summary.get("income", 0) == 0:
             await safe_reply(
                 query.message,
-                text=f"Анализ за {period_name}\n\n"
-                     "Нет транзакций за выбранный период.",
-                reply_markup=main_menu_keyboard()
+                text=f"Анализ за {period_name}\n\nНет транзакций за выбранный период.",
+                reply_markup=main_menu_keyboard(),
             )
             return
 
@@ -410,7 +425,7 @@ async def period_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await safe_reply(
             query.message,
             text=f"📊 AI-АНАЛИЗ ЗА {period_name.upper()}\n\n{report}",
-            reply_markup=main_menu_keyboard()
+            reply_markup=main_menu_keyboard(),
         )
 
     except asyncio.TimeoutError:
@@ -418,14 +433,14 @@ async def period_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         await safe_reply(
             query.message,
             text="📊 Время ожидания истекло. Попробуй выбрать меньший период.",
-            reply_markup=main_menu_keyboard()
+            reply_markup=main_menu_keyboard(),
         )
     except Exception as e:
         logger.error(f"Failed to generate analytics: {e}")
         await safe_reply(
             query.message,
             text=f"📊 Не удалось выполнить анализ.\nОшибка: {str(e)[:100]}",
-            reply_markup=main_menu_keyboard()
+            reply_markup=main_menu_keyboard(),
         )
 
 
@@ -437,10 +452,7 @@ async def transactions_callback(update: Update, context: ContextTypes.DEFAULT_TY
     action = query.data.split(":")[1]
 
     if action == "back":
-        welcome_text = (
-            "Отправь голосовое или текстовое сообщение "
-            "с информацией о расходе/доходе."
-        )
+        welcome_text = "Отправь голосовое или текстовое сообщение с информацией о расходе/доходе."
         await safe_edit_message(query, welcome_text, reply_markup=main_menu_keyboard())
     elif action == "more":
         await show_transactions(update, context)
@@ -454,10 +466,7 @@ async def backup_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     action = query.data.split(":")[1]
 
     if action == "back":
-        welcome_text = (
-            "Отправь голосовое или текстовое сообщение "
-            "с информацией о расходе/доходе."
-        )
+        welcome_text = "Отправь голосовое или текстовое сообщение с информацией о расходе/доходе."
         await safe_edit_message(query, welcome_text, reply_markup=main_menu_keyboard())
 
     elif action == "csv":
@@ -465,29 +474,27 @@ async def backup_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
         try:
             from src.services.sheets_async import async_export_to_csv
+
             csv_data = await async_export_to_csv()
 
             from io import BytesIO
-            file = BytesIO(csv_data.encode('utf-8'))
+
+            file = BytesIO(csv_data.encode("utf-8"))
             file.name = f"transactions_{datetime.now().strftime('%Y%m%d')}.csv"
 
             await safe_reply(
                 query.message,
                 document=file,
                 filename=file.name,
-                caption="📥 Экспорт транзакций в CSV"
+                caption="📥 Экспорт транзакций в CSV",
             )
-            await safe_reply(
-                query.message,
-                text="Выбери действие:",
-                reply_markup=backup_keyboard()
-            )
+            await safe_reply(query.message, text="Выбери действие:", reply_markup=backup_keyboard())
         except Exception as e:
             logger.error(f"Failed to export CSV: {e}")
             await safe_reply(
                 query.message,
                 text=f"📥 Не удалось экспортировать данные.\nОшибка: {str(e)[:100]}",
-                reply_markup=backup_keyboard()
+                reply_markup=backup_keyboard(),
             )
 
     elif action == "now":
@@ -495,19 +502,20 @@ async def backup_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
 
         try:
             from src.services.sheets_async import async_create_backup
+
             backup_name = await async_create_backup()
             await safe_reply(
                 query.message,
                 text=f"💾 Бэкап создан!\n\nНазвание: {backup_name}\n\n"
-                     "Копия таблицы сохранена на Google Drive.",
-                reply_markup=backup_keyboard()
+                "Копия таблицы сохранена на Google Drive.",
+                reply_markup=backup_keyboard(),
             )
         except Exception as e:
             logger.error(f"Failed to create backup: {e}")
             await safe_reply(
                 query.message,
                 text=f"💾 Не удалось создать бэкап.\nОшибка: {str(e)[:100]}",
-                reply_markup=backup_keyboard()
+                reply_markup=backup_keyboard(),
             )
 
 
@@ -528,6 +536,7 @@ async def transaction_callback(update: Update, context: ContextTypes.DEFAULT_TYP
             context.user_data["_processing_transaction"] = True
             try:
                 from src.services.sheets_async import async_add_transaction
+
                 tx_id = await async_add_transaction(pending_tx)
                 text = f"✅ Транзакция #{tx_id} добавлена!\n\n{pending_tx.format_for_user()}"
             except Exception as e:
@@ -552,7 +561,7 @@ async def transaction_callback(update: Update, context: ContextTypes.DEFAULT_TYP
                     await safe_reply(
                         query.message,
                         text=f"Транзакция {current} из {total}:\n\n{next_tx.format_for_user()}",
-                        reply_markup=confirm_transaction_keyboard()
+                        reply_markup=confirm_transaction_keyboard(),
                     )
                     return
                 else:
@@ -568,7 +577,9 @@ async def transaction_callback(update: Update, context: ContextTypes.DEFAULT_TYP
             text = f"✏️ Что изменить?\n\n{pending_tx.format_for_user()}"
             await safe_edit_message(query, text, reply_markup=edit_transaction_keyboard())
         else:
-            await safe_edit_message(query, "Нет транзакции для редактирования.", reply_markup=main_menu_keyboard())
+            await safe_edit_message(
+                query, "Нет транзакции для редактирования.", reply_markup=main_menu_keyboard()
+            )
 
     elif action == "cancel":
         context.user_data.pop("pending_transaction", None)
@@ -586,7 +597,7 @@ async def transaction_callback(update: Update, context: ContextTypes.DEFAULT_TYP
                 await safe_reply(
                     query.message,
                     text=f"Транзакция {current} из {total}:\n\n{next_tx.format_for_user()}",
-                    reply_markup=confirm_transaction_keyboard()
+                    reply_markup=confirm_transaction_keyboard(),
                 )
                 return
             else:
@@ -608,21 +619,25 @@ async def edit_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
             text = f"Подтвердить транзакцию?\n\n{pending_tx.format_for_user()}"
             await safe_edit_message(query, text, reply_markup=confirm_transaction_keyboard())
         else:
-            await safe_edit_message(query,
+            await safe_edit_message(
+                query,
                 "Отправь голосовое или текстовое сообщение.",
-                reply_markup=main_menu_keyboard()
+                reply_markup=main_menu_keyboard(),
             )
 
     elif action == "category":
         if pending_tx:
-            await safe_edit_message(query,
-                "Выбери категорию:",
-                reply_markup=categories_keyboard(pending_tx.type)
+            await safe_edit_message(
+                query, "Выбери категорию:", reply_markup=categories_keyboard(pending_tx.type)
             )
 
     elif action == "type":
         if pending_tx:
-            new_type = TransactionType.INCOME if pending_tx.type == TransactionType.EXPENSE else TransactionType.EXPENSE
+            new_type = (
+                TransactionType.INCOME
+                if pending_tx.type == TransactionType.EXPENSE
+                else TransactionType.EXPENSE
+            )
             pending_tx.type = new_type
             if new_type == TransactionType.INCOME:
                 pending_tx.category = "Доход"
@@ -665,8 +680,8 @@ async def show_health(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
     await safe_answer_callback(query)
 
     try:
-        from src.services.metrics import get_metrics
         from src.services.health_monitor import get_health_monitor
+        from src.services.metrics import get_metrics
         from src.utils.health_formatter import format_health_report
 
         metrics = get_metrics()
@@ -678,18 +693,14 @@ async def show_health(update: Update, context: ContextTypes.DEFAULT_TYPE) -> Non
         health_checks = await health_monitor.check_all_services()
 
         report = format_health_report(
-            metrics_summary,
-            services_status,
-            request_types,
-            health_checks
+            metrics_summary, services_status, request_types, health_checks
         )
 
         await safe_edit_message(query, report, reply_markup=health_keyboard())
     except Exception as e:
         logger.error(f"Failed to load health status: {e}", exc_info=True)
         error_text = (
-            "🔧 СОСТОЯНИЕ БОТА\n\n"
-            f"Не удалось загрузить информацию.\nОшибка: {str(e)[:100]}"
+            f"🔧 СОСТОЯНИЕ БОТА\n\nНе удалось загрузить информацию.\nОшибка: {str(e)[:100]}"
         )
         await safe_edit_message(query, error_text, reply_markup=health_keyboard())
 
@@ -701,10 +712,7 @@ async def health_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
     action = query.data.split(":")[1]
 
     if action == "back":
-        welcome_text = (
-            "Отправь голосовое или текстовое сообщение "
-            "с информацией о расходе/доходе."
-        )
+        welcome_text = "Отправь голосовое или текстовое сообщение с информацией о расходе/доходе."
         await safe_edit_message(query, welcome_text, reply_markup=main_menu_keyboard())
     elif action == "refresh":
         await show_health(update, context)

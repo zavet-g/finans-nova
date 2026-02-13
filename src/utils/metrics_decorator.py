@@ -1,7 +1,8 @@
+import functools
 import logging
 import time
-import functools
-from typing import Callable, Any
+from typing import Any, Callable
+
 from telegram import Update
 from telegram.ext import ContextTypes
 
@@ -14,7 +15,9 @@ logger = logging.getLogger(__name__)
 def track_request(request_type: str, service: str = None):
     def decorator(func: Callable) -> Callable:
         @functools.wraps(func)
-        async def wrapper(update: Update, context: ContextTypes.DEFAULT_TYPE, *args: Any, **kwargs: Any) -> Any:
+        async def wrapper(
+            update: Update, context: ContextTypes.DEFAULT_TYPE, *args: Any, **kwargs: Any
+        ) -> Any:
             metrics = get_metrics()
             throttle = get_throttle_manager()
 
@@ -43,6 +46,7 @@ def track_request(request_type: str, service: str = None):
                     metrics.record_service_call(service, success, duration, error_msg)
 
         return wrapper
+
     return decorator
 
 
@@ -70,4 +74,5 @@ def track_service_call(service: str):
                 metrics.record_service_call(service, success, duration, error_msg)
 
         return wrapper
+
     return decorator

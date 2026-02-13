@@ -1,12 +1,13 @@
 import logging
 from pathlib import Path
-from telegram import Update
-from telegram.ext import ContextTypes
-from telegram.error import TimedOut, BadRequest
 
-from src.config import TEMP_AUDIO_DIR
+from telegram import Update
+from telegram.error import BadRequest, TimedOut
+from telegram.ext import ContextTypes
+
 from src.bot.handlers.menu import is_user_allowed
 from src.bot.handlers.text import process_transaction_text
+from src.config import TEMP_AUDIO_DIR
 from src.utils.metrics_decorator import track_request
 
 logger = logging.getLogger(__name__)
@@ -40,8 +41,7 @@ async def voice_message_handler(update: Update, context: ContextTypes.DEFAULT_TY
 
     if not check_rate_limit(user.id):
         await safe_reply(
-            update.message,
-            "Слишком много запросов. Подожди немного и попробуй снова."
+            update.message, "Слишком много запросов. Подожди немного и попробуй снова."
         )
         return
 
@@ -69,8 +69,7 @@ async def voice_message_handler(update: Update, context: ContextTypes.DEFAULT_TY
         except Exception as e:
             logger.warning(f"Failed to edit processing message: {e}")
             await safe_reply(
-                update.message,
-                "Не удалось распознать речь. Попробуй ещё раз или напиши текстом."
+                update.message, "Не удалось распознать речь. Попробуй ещё раз или напиши текстом."
             )
         return
 
@@ -87,6 +86,7 @@ async def transcribe_audio(audio_path: Path) -> str | None:
     """Транскрибирует аудио в текст через Whisper."""
     try:
         from src.services.speech import transcribe
+
         return await transcribe(audio_path)
     except ImportError:
         logger.warning("Speech service not available, using stub")
