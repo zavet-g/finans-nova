@@ -103,35 +103,37 @@ async def show_transactions(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         )
 
 
-DRAFT_THROTTLE_INTERVAL = 0.8
+STREAM_EDIT_INTERVAL = 1.2
+STREAM_CURSOR = " |"
 
 
 async def _stream_ai_report(context, chat_id: int, prompt: str, period_name: str) -> str:
-    """Генерирует AI-отчёт со стримингом через sendMessageDraft (если доступен)."""
+    """Генерирует AI-отчёт со стримингом через edit_message_text."""
     import time
 
+    from src.bot.message_manager import MAIN_MSG_KEY
     from src.services.ai_analyzer import call_yandex_gpt_stream
 
     header = f"AI-АНАЛИЗ ЗА {period_name.upper()}\n\n"
     accumulated = ""
-    draft_supported = True
-    last_draft_time = 0.0
+    last_edit_time = 0.0
+    msg_id = context.user_data.get(MAIN_MSG_KEY)
 
     async for chunk in call_yandex_gpt_stream(prompt):
         accumulated += chunk
 
         now = time.monotonic()
-        if draft_supported and (now - last_draft_time) >= DRAFT_THROTTLE_INTERVAL:
+        if msg_id and (now - last_edit_time) >= STREAM_EDIT_INTERVAL:
             try:
-                await context.bot.send_message_draft(
+                await context.bot.edit_message_text(
                     chat_id=chat_id,
-                    draft_id=1,
-                    text=header + accumulated,
+                    message_id=msg_id,
+                    text=header + accumulated + STREAM_CURSOR,
                 )
-                last_draft_time = now
-            except Exception as e:
-                logger.debug(f"sendMessageDraft unavailable: {e}")
-                draft_supported = False
+                last_edit_time = now
+            except BadRequest as e:
+                if "message is not modified" not in str(e).lower():
+                    logger.debug(f"Stream edit failed: {e}")
 
     return accumulated
 
