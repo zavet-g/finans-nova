@@ -105,8 +105,52 @@ def back_keyboard(callback_data: str = "back") -> InlineKeyboardMarkup:
 def transactions_list_keyboard() -> InlineKeyboardMarkup:
     """Клавиатура для списка транзакций."""
     return InlineKeyboardMarkup(
-        [[InlineKeyboardButton("◀️ Назад", callback_data="transactions:back")]]
+        [
+            [_styled("🗑 Удалить транзакцию", "transactions:delete", STYLE_DANGER)],
+            [InlineKeyboardButton("◀️ Назад", callback_data="transactions:back")],
+        ]
     )
+
+
+def delete_select_keyboard(transactions: list[dict]) -> InlineKeyboardMarkup:
+    """Клавиатура выбора транзакции для удаления."""
+    from datetime import datetime
+
+    buttons = []
+    for tx in transactions:
+        row_num = tx.get("_row_number", 0)
+        date = tx.get("Дата", "")
+        category = tx.get("Категория", "")
+        amount = tx.get("Сумма", "0")
+        tx_type = tx.get("Тип", "")
+
+        try:
+            date_obj = datetime.strptime(date, "%Y-%m-%d")
+            date_str = date_obj.strftime("%d.%m")
+        except ValueError:
+            date_str = date
+
+        sign = "+" if tx_type == "доход" else "-"
+
+        try:
+            amount_str = f"{float(str(amount).replace(' ', '')):,.0f}".replace(",", " ")
+        except ValueError:
+            amount_str = amount
+
+        label = f"{date_str}  {category}  {sign}{amount_str}"
+        buttons.append([InlineKeyboardButton(label, callback_data=f"del:{row_num}")])
+
+    buttons.append([InlineKeyboardButton("◀️ Назад", callback_data="del:back")])
+    return InlineKeyboardMarkup(buttons)
+
+
+def confirm_delete_keyboard(row_number: int) -> InlineKeyboardMarkup:
+    """Клавиатура подтверждения удаления."""
+    buttons = [
+        [_styled("🗑 Удалить", f"del:confirm:{row_number}", STYLE_DANGER)],
+        [InlineKeyboardButton("◀️ Отмена", callback_data="del:back")],
+    ]
+    return InlineKeyboardMarkup(buttons)
 
 
 def backup_keyboard() -> InlineKeyboardMarkup:

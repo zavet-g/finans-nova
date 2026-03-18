@@ -60,6 +60,18 @@ async def async_get_yearly_monthly_breakdown(year: int):
     return await run_in_executor(get_yearly_monthly_breakdown)(year)
 
 
+async def async_get_transactions_with_rows(limit: int = 15):
+    from src.services.sheets import get_transactions_with_rows
+
+    return await run_in_executor(get_transactions_with_rows)(limit)
+
+
+async def async_delete_transaction(row_number: int):
+    from src.services.sheets import delete_transaction
+
+    return await run_in_executor(delete_transaction)(row_number)
+
+
 async def async_create_backup():
     from src.services.sheets import create_backup
 

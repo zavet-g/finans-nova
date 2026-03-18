@@ -20,6 +20,7 @@ from src.bot.handlers.callbacks import (
     backup_callback,
     category_callback,
     charts_callback,
+    delete_callback,
     edit_callback,
     health_callback,
     menu_callback,
@@ -202,6 +203,7 @@ def main():
     _application.add_handler(CallbackQueryHandler(analytics_callback, pattern=r"^analytics:"))
     _application.add_handler(CallbackQueryHandler(transactions_callback, pattern=r"^transactions:"))
     _application.add_handler(CallbackQueryHandler(backup_callback, pattern=r"^backup:"))
+    _application.add_handler(CallbackQueryHandler(delete_callback, pattern=r"^del:"))
     _application.add_handler(CallbackQueryHandler(transaction_callback, pattern=r"^tx:"))
     _application.add_handler(CallbackQueryHandler(edit_callback, pattern=r"^edit:"))
     _application.add_handler(CallbackQueryHandler(category_callback, pattern=r"^cat:"))

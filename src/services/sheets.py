@@ -579,6 +579,69 @@ def get_yearly_monthly_breakdown(year: int) -> dict:
     return {"income": income, "expenses": expenses}
 
 
+def get_transactions_with_rows(limit: int = 15) -> list[dict]:
+    """Возвращает последние транзакции с номерами строк в таблице."""
+    spreadsheet = get_spreadsheet()
+    worksheet = spreadsheet.worksheet("Транзакции")
+
+    all_values = worksheet.get_all_values()
+    if len(all_values) <= 1:
+        return []
+
+    headers = all_values[0]
+    data_rows = all_values[1:]
+
+    result = []
+    for i in range(len(data_rows) - 1, max(len(data_rows) - limit - 1, -1), -1):
+        if i < 0:
+            break
+        row = data_rows[i]
+        tx = dict(zip(headers, row))
+        tx["_row_number"] = i + 2
+        result.append(tx)
+
+    return result
+
+
+def delete_transaction(row_number: int) -> dict:
+    """Удаляет транзакцию по номеру строки. Возвращает данные удалённой транзакции."""
+    start_time = time.time()
+    success = False
+    error_msg = None
+
+    try:
+        spreadsheet = get_spreadsheet()
+        worksheet = spreadsheet.worksheet("Транзакции")
+
+        all_values = worksheet.get_all_values()
+        total_rows = len(all_values)
+
+        if row_number < 2 or row_number > total_rows:
+            raise ValueError(f"Строка {row_number} не существует")
+
+        headers = all_values[0]
+        deleted_row = all_values[row_number - 1]
+        deleted_tx = dict(zip(headers, deleted_row))
+
+        worksheet.delete_rows(row_number)
+
+        if row_number == 2 and total_rows > 2:
+            balance_formula = '=Сводка!$B$2 + IF(C2="доход"; F2; -F2)'
+            worksheet.update_acell("G2", balance_formula)
+
+        logger.info(f"Транзакция удалена: строка {row_number}, {deleted_tx.get('Описание', '')}")
+        success = True
+        return deleted_tx
+
+    except Exception as e:
+        error_msg = str(e)
+        raise
+
+    finally:
+        duration = time.time() - start_time
+        get_metrics().record_service_call("google_sheets", success, duration, error_msg)
+
+
 def create_backup() -> str:
     """Создаёт резервную копию таблицы."""
     spreadsheet = get_spreadsheet()

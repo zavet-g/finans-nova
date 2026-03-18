@@ -12,7 +12,9 @@ from src.bot.keyboards import (
     backup_keyboard,
     categories_keyboard,
     charts_menu_keyboard,
+    confirm_delete_keyboard,
     confirm_transaction_keyboard,
+    delete_select_keyboard,
     edit_transaction_keyboard,
     health_keyboard,
     main_menu_keyboard,
@@ -481,6 +483,9 @@ async def transactions_callback(update: Update, context: ContextTypes.DEFAULT_TY
             context, chat_id, text=welcome_text, reply_markup=main_menu_keyboard()
         )
 
+    elif action == "delete":
+        await _show_delete_list(context, chat_id)
+
 
 async def backup_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Обработчик callback-ов бэкапа."""
@@ -788,3 +793,160 @@ async def health_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) ->
         )
     elif action == "refresh":
         await show_health(update, context)
+
+
+async def _show_delete_list(context: ContextTypes.DEFAULT_TYPE, chat_id: int) -> None:
+    """Показывает список транзакций для удаления."""
+    await update_main_message(context, chat_id, text="Загружаю транзакции...")
+
+    try:
+        from src.services.sheets_async import async_get_transactions_with_rows
+
+        transactions = await async_get_transactions_with_rows(limit=15)
+        if not transactions:
+            await update_main_message(
+                context,
+                chat_id,
+                text="Нет транзакций для удаления.",
+                reply_markup=transactions_list_keyboard(),
+            )
+            return
+
+        context.user_data["delete_transactions"] = transactions
+
+        await update_main_message(
+            context,
+            chat_id,
+            text="УДАЛЕНИЕ ТРАНЗАКЦИИ\n\nВыбери транзакцию для удаления:",
+            reply_markup=delete_select_keyboard(transactions),
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to load transactions for delete: {e}")
+        await update_main_message(
+            context,
+            chat_id,
+            text="Не удалось загрузить транзакции.",
+            reply_markup=transactions_list_keyboard(),
+        )
+
+
+async def delete_callback(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Обработчик callback-ов удаления транзакции."""
+    query = update.callback_query
+    await safe_answer_callback(query)
+
+    chat_id = update.effective_chat.id
+    parts = query.data.split(":")
+
+    action = parts[1]
+
+    if action == "back":
+        context.user_data.pop("delete_transactions", None)
+        await show_transactions(update, context)
+        return
+
+    if action == "confirm":
+        row_number = int(parts[2])
+        await _execute_delete(context, chat_id, row_number)
+        return
+
+    try:
+        row_number = int(action)
+    except ValueError:
+        return
+
+    cached = context.user_data.get("delete_transactions", [])
+    tx = next((t for t in cached if t.get("_row_number") == row_number), None)
+
+    if not tx:
+        await update_main_message(
+            context,
+            chat_id,
+            text="Транзакция не найдена. Попробуй ещё раз.",
+            reply_markup=main_menu_keyboard(),
+        )
+        return
+
+    from src.utils.formatters import format_amount
+
+    tx_type = tx.get("Тип", "")
+    sign = "+" if tx_type == "доход" else "-"
+    try:
+        amount_str = format_amount(float(str(tx.get("Сумма", "0")).replace(" ", "")))
+    except ValueError:
+        amount_str = tx.get("Сумма", "0")
+
+    text = (
+        "ПОДТВЕРЖДЕНИЕ УДАЛЕНИЯ\n\n"
+        f"Дата: {tx.get('Дата', '')}\n"
+        f"Тип: {tx_type}\n"
+        f"Категория: {tx.get('Категория', '')}\n"
+        f"Описание: {tx.get('Описание', '')}\n"
+        f"Сумма: {sign}{amount_str} руб.\n\n"
+        "Это действие нельзя отменить."
+    )
+
+    await update_main_message(
+        context,
+        chat_id,
+        text=text,
+        reply_markup=confirm_delete_keyboard(row_number),
+    )
+
+
+async def _execute_delete(
+    context: ContextTypes.DEFAULT_TYPE, chat_id: int, row_number: int
+) -> None:
+    """Выполняет удаление транзакции."""
+    await update_main_message(context, chat_id, text="Удаляю транзакцию...")
+
+    try:
+        from src.services.sheets_async import async_delete_transaction
+
+        deleted_tx = await async_delete_transaction(row_number)
+        context.user_data.pop("delete_transactions", None)
+
+        from src.utils.formatters import format_amount
+
+        try:
+            amount_str = format_amount(float(str(deleted_tx.get("Сумма", "0")).replace(" ", "")))
+        except ValueError:
+            amount_str = deleted_tx.get("Сумма", "0")
+
+        from src.services.sheets_async import async_get_transactions
+
+        last_tx = await async_get_transactions(limit=1)
+        balance_text = ""
+        if last_tx:
+            try:
+                balance = float(
+                    str(last_tx[0].get("Баланс", "0")).replace(" ", "").replace(",", ".")
+                )
+                balance_text = f"\nТекущий баланс: {format_amount(balance)} руб."
+            except ValueError:
+                pass
+
+        text = (
+            "Транзакция удалена.\n\n"
+            f"Категория: {deleted_tx.get('Категория', '')}\n"
+            f"Описание: {deleted_tx.get('Описание', '')}\n"
+            f"Сумма: {amount_str} руб."
+            f"{balance_text}"
+        )
+
+        await update_main_message(
+            context,
+            chat_id,
+            text=text,
+            reply_markup=main_menu_keyboard(),
+        )
+
+    except Exception as e:
+        logger.error(f"Failed to delete transaction: {e}")
+        await update_main_message(
+            context,
+            chat_id,
+            text=f"Не удалось удалить транзакцию.\nОшибка: {str(e)[:100]}",
+            reply_markup=main_menu_keyboard(),
+        )
