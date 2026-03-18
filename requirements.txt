@@ -1,4 +1,5 @@
-python-telegram-bot>=20.0
+python-telegram-bot[socks]>=20.0
+PySocks>=1.7.1
 --extra-index-url https://download.pytorch.org/whl/cpu
 torch
 openai-whisper>=20230314

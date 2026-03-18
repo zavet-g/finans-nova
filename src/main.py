@@ -179,7 +179,9 @@ def main():
         logger.error("TELEGRAM_BOT_TOKEN not set in .env")
         sys.exit(1)
 
-    _application = (
+    from src.config import SOCKS_PROXY
+
+    builder = (
         Application.builder()
         .token(TELEGRAM_BOT_TOKEN)
         .read_timeout(30)
@@ -189,8 +191,10 @@ def main():
         .get_updates_read_timeout(60)
         .post_init(post_init)
         .post_shutdown(post_shutdown)
-        .build()
     )
+    if SOCKS_PROXY:
+        builder = builder.proxy(SOCKS_PROXY).get_updates_proxy(SOCKS_PROXY)
+    _application = builder.build()
 
     _application.add_error_handler(error_handler)
 

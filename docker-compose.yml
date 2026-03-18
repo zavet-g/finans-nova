@@ -10,8 +10,12 @@ services:
     volumes:
       - ./credentials:/app/credentials:ro
       - ./backups:/app/backups
+    network_mode: host
     environment:
       - TZ=Europe/Moscow
       - TERM=xterm-256color
       - FORCE_COLOR=1
       - COLORTERM=truecolor
+      - HTTPS_PROXY=socks5h://127.0.0.1:1080
+      - HTTP_PROXY=socks5h://127.0.0.1:1080
+      - NO_PROXY=localhost,127.0.0.1

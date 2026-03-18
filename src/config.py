@@ -19,6 +19,8 @@ ALLOWED_USER_IDS = [
     int(uid.strip()) for uid in os.getenv("ALLOWED_USER_IDS", "").split(",") if uid.strip()
 ]
 
+SOCKS_PROXY = os.getenv("SOCKS_PROXY", "")
+
 WHISPER_MODEL = "medium"
 
 EXPENSE_CATEGORIES = [
