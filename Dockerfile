@@ -1,7 +1,6 @@
 FROM python:3.11-slim
 
-COPY ffmpeg ffprobe /usr/local/bin/
-RUN chmod +x /usr/local/bin/ffmpeg /usr/local/bin/ffprobe
+RUN apt-get update && apt-get install -y --no-install-recommends ffmpeg && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
