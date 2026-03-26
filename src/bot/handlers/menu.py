@@ -39,6 +39,7 @@ async def start_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> N
         "Например: «потратил 500 на такси» или «получил зарплату 100000»"
     )
 
+    context.user_data.pop("main_message_id", None)
     await setup_reply_keyboard(context, chat_id)
     await update_main_message(
         context, chat_id, text=welcome_text, reply_markup=main_menu_keyboard()
